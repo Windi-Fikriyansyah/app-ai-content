@@ -1,0 +1,274 @@
+/**
+ * Zernio API Client for Social Media Publishing & Account Management
+ * Base URL: https://zernio.com/api/v1
+ * Documentation: https://docs.zernio.com
+ */
+
+const ZERNIO_API_BASE_URL =
+  process.env.ZERNIO_API_BASE_URL || "https://zernio.com/api";
+
+export interface ZernioProfile {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt?: string;
+}
+
+export interface ZernioAccount {
+  id: string;
+  profileId?: string;
+  platform: "instagram" | "facebook" | "twitter" | "linkedin" | "tiktok" | string;
+  accountUsername?: string;
+  username?: string;
+  name?: string;
+  displayName?: string;
+  profilePictureUrl?: string;
+  avatarUrl?: string;
+  status: "active" | "connected" | "disconnected" | "expired" | string;
+  metadata?: Record<string, any>;
+}
+
+export class ZernioClient {
+  private apiKey: string;
+  private baseUrl: string;
+
+  constructor(apiKey: string, baseUrl = ZERNIO_API_BASE_URL) {
+    this.apiKey = apiKey.trim();
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<{ success: boolean; data?: T; error?: string; status: number }> {
+    try {
+      const url = `${this.baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...options.headers,
+        },
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const errorMsg =
+          json?.message ||
+          json?.error ||
+          `Zernio API error with HTTP ${res.status}: ${res.statusText}`;
+        return { success: false, data: json as T, error: errorMsg, status: res.status };
+      }
+
+      return { success: true, data: json as T, status: res.status };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || "Failed to communicate with Zernio API",
+        status: 500,
+      };
+    }
+  }
+
+  /**
+   * Validate API Key by fetching accounts or profiles
+   */
+  async validateApiKey(): Promise<{ valid: boolean; error?: string; accountsCount?: number }> {
+    const res = await this.getAccounts();
+    if (!res.success) {
+      // If 401 or 403, key is definitely invalid
+      return { valid: false, error: res.error || "Kunci API Zernio tidak valid atau tidak memiliki izin." };
+    }
+    let accounts: ZernioAccount[] = [];
+    if (res.data) {
+      if (Array.isArray(res.data)) {
+        accounts = res.data;
+      } else if (Array.isArray((res.data as any).data)) {
+        accounts = (res.data as any).data;
+      }
+    }
+    return { valid: true, accountsCount: accounts.length };
+  }
+
+  /**
+   * List Profiles: GET /v1/profiles
+   */
+  async getProfiles(params?: { limit?: number; skip?: number; name?: string }) {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.skip) query.set("skip", params.skip.toString());
+    if (params?.name) query.set("name", params.name);
+
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+    return this.request<{ data: ZernioProfile[] } | ZernioProfile[]>(
+      `/v1/profiles${queryString}`
+    );
+  }
+
+  /**
+   * Create Profile: POST /v1/profiles
+   */
+  async createProfile(name: string) {
+    return this.request<ZernioProfile>("/v1/profiles", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  /**
+   * Ensure a Profile exists for this workspace / brand
+   */
+  async getOrCreateProfile(profileName: string): Promise<{ profileId?: string; error?: string }> {
+    // 1. Helper to safely extract profiles array
+    const extractProfiles = (raw: any): any[] => {
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw;
+      if (Array.isArray(raw.data)) return raw.data;
+      if (Array.isArray(raw.profiles)) return raw.profiles;
+      return [];
+    };
+
+    // 2. Helper to get profile ID (_id or id)
+    const getId = (item: any): string | undefined => {
+      if (!item) return undefined;
+      return item._id || item.id || item.profile?._id || item.profile?.id;
+    };
+
+    // 3. Try to find existing profile first
+    const listRes = await this.getProfiles();
+    if (listRes.success && listRes.data) {
+      const profiles = extractProfiles(listRes.data);
+      const match = profiles.find((p) => p.name?.toLowerCase() === profileName.toLowerCase());
+      if (match && getId(match)) return { profileId: getId(match) };
+      if (profiles.length > 0 && getId(profiles[0])) return { profileId: getId(profiles[0]) };
+    }
+
+    // 4. Otherwise create one
+    const createRes = await this.createProfile(profileName);
+    if (createRes.success && createRes.data) {
+      const createdId = getId(createRes.data) || (createRes.data as any)?.profile?._id;
+      if (createdId) {
+        return { profileId: createdId };
+      }
+    }
+
+    // 5. If 409 Conflict: "A profile with this name already exists"
+    // Check if Zernio returned details.existingProfileId or existingProfileId
+    const conflictData: any = createRes.data;
+    const existingId =
+      conflictData?.details?.existingProfileId ||
+      conflictData?.details?.profileId ||
+      conflictData?.existingProfileId ||
+      conflictData?.profileId ||
+      conflictData?.profile?._id;
+
+    if (existingId) {
+      return { profileId: existingId };
+    }
+
+    // 6. Query profiles list again and take the existing profile
+    const retryList = await this.getProfiles();
+    if (retryList.success && retryList.data) {
+      const profiles = extractProfiles(retryList.data);
+      const match = profiles.find((p) => p.name?.toLowerCase() === profileName.toLowerCase());
+      if (match && getId(match)) return { profileId: getId(match) };
+      if (profiles.length > 0 && getId(profiles[0])) return { profileId: getId(profiles[0]) };
+    }
+
+    return { error: createRes.error || "Gagal membuat atau mengambil profile di Zernio" };
+  }
+
+  /**
+   * Get Instagram Connect OAuth URL: GET /v1/connect/instagram
+   * @param profileId Profile ID to link account to
+   * @param redirectUrl URL to redirect after OAuth completion
+   * @param loginMethod 'instagram_login' (default) or 'facebook_login'
+   */
+  async getInstagramConnectUrl(params: {
+    profileId: string;
+    redirectUrl?: string;
+    loginMethod?: "instagram_login" | "facebook_login";
+  }): Promise<{ success: boolean; authUrl?: string; error?: string }> {
+    const query = new URLSearchParams();
+    query.set("profileId", params.profileId);
+    if (params.redirectUrl) query.set("redirect_url", params.redirectUrl);
+    query.set("loginMethod", params.loginMethod || "instagram_login");
+
+    const endpoint = `/v1/connect/instagram?${query.toString()}`;
+    const url = `${this.baseUrl}${endpoint}`;
+
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          Accept: "application/json",
+        },
+        redirect: "manual", // Handle both 302 redirects and JSON response
+      });
+
+      // 1. Check if Zernio returned a 301/302/307 redirect directly
+      const location = res.headers.get("location");
+      if (location) {
+        return { success: true, authUrl: location };
+      }
+
+      // 2. Otherwise parse JSON
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        return {
+          success: false,
+          error:
+            json?.message ||
+            json?.error ||
+            `Zernio HTTP ${res.status}: ${res.statusText}`,
+        };
+      }
+
+      const authUrl =
+        json?.authUrl ||
+        json?.url ||
+        json?.data?.authUrl ||
+        json?.data?.url;
+
+      if (authUrl) {
+        return { success: true, authUrl };
+      }
+
+      return {
+        success: false,
+        error:
+          json?.message ||
+          "Respon Zernio tidak menyertakan URL otentikasi (authUrl).",
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || "Gagal menghubungi server Zernio.",
+      };
+    }
+  }
+
+  /**
+   * List Connected Accounts: GET /v1/accounts
+   */
+  async getAccounts(profileId?: string) {
+    const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : "";
+    return this.request<{ data: ZernioAccount[] } | ZernioAccount[]>(
+      `/v1/accounts${query}`
+    );
+  }
+
+  /**
+   * Disconnect an Account: DELETE /v1/accounts/:id
+   */
+  async disconnectAccount(accountId: string) {
+    return this.request(`/v1/accounts/${accountId}`, {
+      method: "DELETE",
+    });
+  }
+}
