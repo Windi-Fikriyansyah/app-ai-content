@@ -21,6 +21,8 @@ export interface ContentLibraryItem {
   cta?: string | null;
   hashtags?: string[] | null;
   media_url?: string | null;
+  media_urls?: string[] | null;
+  carousel_slides?: Array<{ slide: number; imageUrl: string; title?: string; prompt?: string }> | null;
   ai_score?: number | null;
   zernio_post_id?: string | null;
   zernio_account_id?: string | null;
@@ -108,6 +110,8 @@ export async function getContentLibraryData(): Promise<{
       cta: p.cta || null,
       hashtags: Array.isArray(p.hashtags) ? p.hashtags : [],
       media_url: p.media_url || null,
+      media_urls: Array.isArray(p.media_urls) ? p.media_urls : p.media_url ? [p.media_url] : [],
+      carousel_slides: Array.isArray(p.carousel_slides) ? p.carousel_slides : null,
       ai_score: p.ai_score || null,
       zernio_post_id: p.zernio_post_id || null,
       zernio_account_id: p.zernio_account_id || p.ai_review?.zernio_account_id || null,

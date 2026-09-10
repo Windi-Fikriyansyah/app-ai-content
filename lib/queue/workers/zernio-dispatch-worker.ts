@@ -36,9 +36,15 @@ export function createZernioDispatchWorker() {
 
       await job.updateProgress(30);
 
-      // 2. Prepare Media & Caption
-      const mediaUrl = post.media_url;
-      const mediaUrls = mediaUrl ? [mediaUrl] : [];
+      // 2. Prepare Media & Caption (Support Multi-slide Carousel)
+      let mediaUrls: string[] = [];
+      if (Array.isArray(post.media_urls) && post.media_urls.length > 0) {
+        mediaUrls = post.media_urls;
+      } else if (Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
+        mediaUrls = post.carousel_slides.map((s: any) => s.imageUrl).filter(Boolean);
+      } else if (post.media_url) {
+        mediaUrls = [post.media_url];
+      }
 
       const hashtagsStr =
         Array.isArray(post.hashtags) && post.hashtags.length > 0

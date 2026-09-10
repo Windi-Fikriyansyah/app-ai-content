@@ -142,6 +142,8 @@ export async function triggerSinglePostLazyGenAction(
       cta: result.cta || post.cta || null,
       hashtags: result.hashtags || post.hashtags || [],
       media_url: result.mediaUrl || post.media_url || null,
+      media_urls: result.mediaUrls || (result.mediaUrl ? [result.mediaUrl] : post.media_urls || null),
+      carousel_slides: result.carouselSlides || post.carousel_slides || null,
       ai_score: result.aiScore || 90,
       ai_review: result.aiReview || {},
       status: result.status,
@@ -151,12 +153,26 @@ export async function triggerSinglePostLazyGenAction(
       generated_at: new Date().toISOString(),
     };
 
-    const { data: updatedPost, error: updateErr } = await supabase
+    let { data: updatedPost, error: updateErr } = await supabase
       .from("content_posts")
       .update(updatePayload)
       .eq("id", postId)
       .select()
       .single();
+
+    if (updateErr) {
+      console.warn("Retrying update without new carousel columns:", updateErr.message);
+      delete updatePayload.media_urls;
+      delete updatePayload.carousel_slides;
+      const retry = await supabase
+        .from("content_posts")
+        .update(updatePayload)
+        .eq("id", postId)
+        .select()
+        .single();
+      updatedPost = retry.data;
+      updateErr = retry.error;
+    }
 
     if (updateErr) {
       console.error("Error updating content_posts after Lazy Gen:", updateErr);
@@ -262,9 +278,15 @@ export async function approvePostAction(postId: string): Promise<{
     // 4. Fallback: Direct synchronous Zernio scheduling if Redis is offline
     console.log(`[ZernioPublish] 🔄 Executing direct Zernio scheduling pipeline...`);
 
-    // Prepare Media
-    const mediaUrl = post.media_url;
-    const mediaUrls = mediaUrl ? [mediaUrl] : [];
+    // Prepare Media (Support Multi-slide Carousel)
+    let mediaUrls: string[] = [];
+    if (Array.isArray(post.media_urls) && post.media_urls.length > 0) {
+      mediaUrls = post.media_urls;
+    } else if (Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
+      mediaUrls = post.carousel_slides.map((s: any) => s.imageUrl).filter(Boolean);
+    } else if (post.media_url) {
+      mediaUrls = [post.media_url];
+    }
 
     // Format content with hashtags
     const hashtagsStr = Array.isArray(post.hashtags) && post.hashtags.length > 0
@@ -329,7 +351,7 @@ export async function approvePostAction(postId: string): Promise<{
     console.log(`  - Account ID:   ${zernioAccountId}`);
     console.log(`  - Format:       ${post.format || "Feed"}`);
     console.log(`  - Scheduled At: ${scheduledAtDate.toISOString()}`);
-    console.log(`  - Media:        ${mediaUrl ? "Available ✅" : "No media"}`);
+    console.log(`  - Media:        ${mediaUrls.length > 0 ? `${mediaUrls.length} image(s) ✅` : "No media"}`);
 
     const zernioRes = await zernioClient.createPost({
       accountIds: [zernioAccountId],
@@ -715,17 +737,33 @@ export async function retrySinglePostImageAction(
       const imgRes = await generateImageWithAI(brief, context);
       if (imgRes.success && imgRes.mediaUrl) {
         const hasCaption = Boolean(post.caption);
-        const { data: updatedPost } = await supabase
+        const updatePayload: any = {
+          media_url: imgRes.mediaUrl,
+          media_urls: imgRes.mediaUrls || [imgRes.mediaUrl],
+          carousel_slides: imgRes.carouselSlides || null,
+          image_status: "COMPLETED",
+          generation_error: null,
+          ...(hasCaption ? { status: "READY FOR APPROVAL" } : {}),
+        };
+
+        let { data: updatedPost, error: updateErr } = await supabase
           .from("content_posts")
-          .update({
-            media_url: imgRes.mediaUrl,
-            image_status: "COMPLETED",
-            generation_error: null,
-            ...(hasCaption ? { status: "READY FOR APPROVAL" } : {}),
-          })
+          .update(updatePayload)
           .eq("id", postId)
           .select()
           .single();
+
+        if (updateErr) {
+          delete updatePayload.media_urls;
+          delete updatePayload.carousel_slides;
+          const retry = await supabase
+            .from("content_posts")
+            .update(updatePayload)
+            .eq("id", postId)
+            .select()
+            .single();
+          updatedPost = retry.data;
+        }
 
         revalidatePath("/content-calendar");
         return { success: true, queued: false, post: updatedPost };
@@ -960,25 +998,42 @@ export async function triggerPostRevisionAction(
         ? "REVIEW"
         : "FAILED";
 
-    const { data: updatedPost, error: updateErr } = await supabase
+    const updatePayload: any = {
+      caption: captionResult.caption || post.caption,
+      hook: captionResult.hook || post.hook,
+      cta: captionResult.cta || post.cta,
+      hashtags: captionResult.hashtags || post.hashtags,
+      media_url: imageResult.mediaUrl || post.media_url,
+      media_urls: imageResult.mediaUrls || (imageResult.mediaUrl ? [imageResult.mediaUrl] : post.media_urls || null),
+      carousel_slides: imageResult.carouselSlides || post.carousel_slides || null,
+      caption_status: captionResult.success ? "COMPLETED" : "FAILED",
+      image_status: imageResult.success ? "COMPLETED" : "FAILED",
+      ai_score: newReview.score,
+      ai_review: newReview,
+      status: finalStatus,
+      generation_error: captionResult.error || null,
+      generated_at: new Date().toISOString(),
+    };
+
+    let { data: updatedPost, error: updateErr } = await supabase
       .from("content_posts")
-      .update({
-        caption: captionResult.caption || post.caption,
-        hook: captionResult.hook || post.hook,
-        cta: captionResult.cta || post.cta,
-        hashtags: captionResult.hashtags || post.hashtags,
-        media_url: imageResult.mediaUrl || post.media_url,
-        caption_status: captionResult.success ? "COMPLETED" : "FAILED",
-        image_status: imageResult.success ? "COMPLETED" : "FAILED",
-        ai_score: newReview.score,
-        ai_review: newReview,
-        status: finalStatus,
-        generation_error: captionResult.error || null,
-        generated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", postId)
       .select()
       .single();
+
+    if (updateErr) {
+      delete updatePayload.media_urls;
+      delete updatePayload.carousel_slides;
+      const retry = await supabase
+        .from("content_posts")
+        .update(updatePayload)
+        .eq("id", postId)
+        .select()
+        .single();
+      updatedPost = retry.data;
+      updateErr = retry.error;
+    }
 
     if (updateErr) {
       return { success: false, error: "Gagal menyimpan hasil revisi ke database." };

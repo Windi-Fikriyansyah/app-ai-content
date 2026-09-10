@@ -56,6 +56,13 @@ export interface ContentPlanItem {
   caption?: string | null;
   hashtags?: string[] | null;
   media_url?: string | null;
+  media_urls?: string[] | null;
+  carousel_slides?: Array<{
+    slide: number;
+    imageUrl: string;
+    title?: string;
+    prompt?: string;
+  }> | null;
   ai_score?: number | null;
   ai_review?: AIReviewResult | null;
   caption_status?: string | null;

@@ -28,9 +28,18 @@ export interface CaptionGenerationResult {
   error?: string;
 }
 
+export interface CarouselSlideItem {
+  slide: number;
+  imageUrl: string;
+  title?: string;
+  prompt?: string;
+}
+
 export interface ImageGenerationResult {
   success: boolean;
   mediaUrl?: string;
+  mediaUrls?: string[];
+  carouselSlides?: CarouselSlideItem[];
   revisedPrompt?: string;
   error?: string;
 }
@@ -44,6 +53,8 @@ export interface LazyGenerationResult {
   cta?: string;
   hashtags?: string[];
   mediaUrl?: string;
+  mediaUrls?: string[];
+  carouselSlides?: CarouselSlideItem[];
   aiScore?: number;
   aiReview?: AIReviewResult;
   captionStatus: "COMPLETED" | "FAILED";
@@ -436,19 +447,20 @@ Revisi draft di atas agar menyelesaikan semua poin masalah (issues) dan meraih s
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. AI GENERATE IMAGE (Model configured via OPENAI_IMAGE_MODEL)
+// 2. AI GENERATE IMAGE (Per-slide Carousel & Single Image Engine)
 // ═══════════════════════════════════════════════════════════════════
 
-export async function generateImageWithAI(
-  brief: {
-    title: string;
-    topic: string;
-    visualDirection: string;
-    format: string;
-    contentType: string;
-  },
-  context: BusinessContext
-): Promise<ImageGenerationResult> {
+/**
+ * Helper: Calls OpenAI Image API for 1 prompt and uploads result to Supabase Storage
+ */
+async function callOpenAIImageApi(
+  prompt: string,
+  options: {
+    formatPrefix: string;
+    size: "1024x1024" | "1024x1792";
+    quality?: "low" | "medium" | "high" | "auto";
+  }
+): Promise<{ success: boolean; mediaUrl?: string; revisedPrompt?: string; error?: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   const imageModel = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2";
 
@@ -459,31 +471,15 @@ export async function generateImageWithAI(
     };
   }
 
-  // Size aspect ratio: Square for Feed/Carousel (1024x1024), Portrait for Story/Reels (1024x1792)
-  const isPortrait = brief.format.toLowerCase() === "story" || brief.format.toLowerCase() === "reels";
-  const size = isPortrait ? "1024x1792" : "1024x1024";
-
-  // Build prompt combining visual direction, brand kit palette and aesthetic
-  const visualPrompt = `Professional, high-aesthetic Instagram marketing visual for ${context.businessName} (${context.category}).
-Topic: ${brief.topic}.
-Creative Direction: ${brief.visualDirection || "Modern, clean, aesthetic composition"}.
-Brand Color Accents: Primary ${context.brandKit.primaryColor}, Secondary ${context.brandKit.secondaryColor}.
-Style: ${context.brandKit.visualStyle}, premium photography or clean modern graphic design, high resolution, soft balanced studio lighting.
-Strict Requirement: Do not render gibberish, broken, or misspellings of text inside the image. Keep it visually stunning and Instagram-ready.`;
-
   try {
     const bodyPayload: Record<string, any> = {
       model: imageModel,
-      prompt: visualPrompt,
+      prompt,
       n: 1,
-      size,
+      size: options.size,
     };
 
-    // OpenAI Quality parameter selected by user:
-    // - dall-e-3 supports 'standard' or 'hd'
-    // - gpt-image-2 / modern models support 'low', 'medium', 'high', 'auto'
-    // - dall-e-2 does not use quality
-    const selectedQuality = context?.imageQuality || "medium";
+    const selectedQuality = options.quality || "medium";
     if (imageModel === "dall-e-3") {
       bodyPayload.quality = selectedQuality === "high" ? "hd" : "standard";
     } else if (imageModel === "dall-e-2") {
@@ -492,7 +488,9 @@ Strict Requirement: Do not render gibberish, broken, or misspellings of text ins
       bodyPayload.quality = selectedQuality;
     }
 
-    console.log(`[OpenAI Image API] 🎨 Calling model: "${imageModel}", quality: "${bodyPayload.quality || 'default'}", size: "${size}"`);
+    console.log(
+      `[OpenAI Image API] 🎨 Calling model: "${imageModel}", quality: "${bodyPayload.quality || 'default'}", size: "${options.size}"`
+    );
 
     const response = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
@@ -522,9 +520,7 @@ Strict Requirement: Do not render gibberish, broken, or misspellings of text ins
     const data = await response.json();
     const item = data.data?.[0];
 
-    // Pipeline Step 1: OpenAI Response → b64_json or temporary url → Buffer
     let imageBuffer: Buffer | null = null;
-
     if (item?.b64_json) {
       const cleanB64 = item.b64_json.replace(/^data:image\/\w+;base64,/, "");
       imageBuffer = Buffer.from(cleanB64, "base64");
@@ -542,19 +538,14 @@ Strict Requirement: Do not render gibberish, broken, or misspellings of text ins
     }
 
     if (!imageBuffer) {
-      console.error(
-        "[OpenAI Image API] ❌ Response payload received but neither b64_json nor url could be processed into Buffer:",
-        JSON.stringify(data).slice(0, 300)
-      );
       return {
         success: false,
         error: "OpenAI Image API tidak mengembalikan data gambar (b64_json / url) yang valid.",
       };
     }
 
-    // Pipeline Step 2: Buffer → Supabase Storage (content-media) → Public URL
-    console.log(`[Supabase Storage] ☁️ Uploading image Buffer to Supabase Storage...`);
-    const storageRes = await uploadImageBufferToSupabase(imageBuffer, brief.format);
+    console.log(`[Supabase Storage] ☁️ Uploading image Buffer to Supabase Storage (${options.formatPrefix})...`);
+    const storageRes = await uploadImageBufferToSupabase(imageBuffer, options.formatPrefix);
 
     let mediaUrl: string;
     if (storageRes.success && storageRes.publicUrl) {
@@ -567,19 +558,177 @@ Strict Requirement: Do not render gibberish, broken, or misspellings of text ins
       mediaUrl = `data:image/png;base64,${imageBuffer.toString("base64")}`;
     }
 
-    const revisedPrompt = item?.revised_prompt;
-
     return {
       success: true,
       mediaUrl,
-      revisedPrompt,
+      revisedPrompt: item?.revised_prompt,
     };
   } catch (err: any) {
     return {
       success: false,
-      error: err.message || "Gagal membuat gambar dengan AI Image.",
+      error: err.message || "Gagal memanggil API generate gambar.",
     };
   }
+}
+
+/**
+ * Generates an Instagram Carousel with 1 image API request PER SLIDE.
+ * Creates 3-5 separate images (Slide 1..N) to avoid multi-panel collage artifacts.
+ */
+export async function generateCarouselImagesWithAI(
+  brief: {
+    title: string;
+    topic: string;
+    visualDirection: string;
+    format: string;
+    contentType: string;
+    keyPoints?: string[];
+  },
+  context: BusinessContext
+): Promise<ImageGenerationResult> {
+  console.log(`[Carousel Generator] 🎠 Starting multi-slide image generation for topic: "${brief.topic}"`);
+
+  // Build 4 narrative slides (Cover/Hook, Context, Solution/Key Point, CTA)
+  const keyPoints = Array.isArray(brief.keyPoints) && brief.keyPoints.length > 0
+    ? brief.keyPoints
+    : [brief.topic];
+
+  const slideConfigs = [
+    {
+      number: 1,
+      name: "Slide 1 (Cover / Hook)",
+      theme: `HOOK & COVER. Striking single full-bleed hero graphic for: "${brief.title}". Must evoke intense curiosity and stop scrolling instantly.`,
+    },
+    {
+      number: 2,
+      name: "Slide 2 (The Context / Problem)",
+      theme: `THE CONTEXT & PROBLEM. Clear relatable visual depicting the core challenge around "${brief.topic}": ${keyPoints[0] || "understanding the problem"}.`,
+    },
+    {
+      number: 3,
+      name: "Slide 3 (The Solution / Key Insight)",
+      theme: `KEY INSIGHT & VALUE. Inspiring visual showing practical application or solution: ${keyPoints[1] || keyPoints[0] || "breakthrough solution"}.`,
+    },
+    {
+      number: 4,
+      name: "Slide 4 (Action / Call to Action)",
+      theme: `CALL TO ACTION & OUTCOME. Clean, motivating conclusion slide encouraging audience engagement for ${context.businessName}.`,
+    },
+  ];
+
+  const generatedSlides: CarouselSlideItem[] = [];
+  const mediaUrls: string[] = [];
+
+  for (const slide of slideConfigs) {
+    console.log(`[Carousel Generator] 📸 Generating Slide ${slide.number}/${slideConfigs.length}: ${slide.name}...`);
+
+    // Strict prompt per slide: 1 standalone image, no collage, no multi-panel preview
+    const slidePrompt = `Professional, high-aesthetic standalone Instagram Carousel Slide (Slide ${slide.number} of ${slideConfigs.length}) for ${context.businessName} (${context.category}).
+Topic: ${brief.topic}.
+Slide Focus: ${slide.theme}.
+Creative Direction: ${brief.visualDirection || "Modern, clean, aesthetic composition"}.
+Brand Color Accents: Primary ${context.brandKit.primaryColor}, Secondary ${context.brandKit.secondaryColor}.
+Visual Style: ${context.brandKit.visualStyle}, premium photography or clean modern graphic design, high resolution, balanced studio lighting.
+CRITICAL INSTRUCTION: Render ONLY A SINGLE STANDALONE FULL-BLEED SLIDE IMAGE. DO NOT create a multi-slide carousel mockup, collage, or multiple panels in one image. DO NOT render gibberish, broken, or misspellings of text.`;
+
+    const slideResult = await callOpenAIImageApi(slidePrompt, {
+      formatPrefix: `carousel-slide-${slide.number}`,
+      size: "1024x1024",
+      quality: context?.imageQuality || "medium",
+    });
+
+    if (slideResult.success && slideResult.mediaUrl) {
+      generatedSlides.push({
+        slide: slide.number,
+        imageUrl: slideResult.mediaUrl,
+        title: slide.name,
+        prompt: slidePrompt,
+      });
+      mediaUrls.push(slideResult.mediaUrl);
+      console.log(`[Carousel Generator] ✅ Slide ${slide.number} ready: ${slideResult.mediaUrl.slice(0, 60)}...`);
+    } else {
+      console.error(`[Carousel Generator] ❌ Slide ${slide.number} failed: ${slideResult.error}`);
+      // If slide 1 fails, we fail overall. If subsequent slides fail, we log warning
+      if (slide.number === 1) {
+        return {
+          success: false,
+          error: `Gagal generate Slide 1 Carousel: ${slideResult.error || "Unknown error"}`,
+        };
+      }
+    }
+  }
+
+  if (mediaUrls.length === 0) {
+    return {
+      success: false,
+      error: "Gagal membuat gambar slide carousel.",
+    };
+  }
+
+  console.log(
+    `[Carousel Generator] 🎉 All ${mediaUrls.length} carousel slides generated successfully!`
+  );
+
+  return {
+    success: true,
+    mediaUrl: mediaUrls[0], // Cover / Slide 1 for backwards compatibility
+    mediaUrls,
+    carouselSlides: generatedSlides,
+  };
+}
+
+/**
+ * Main Image Generation Entrypoint:
+ * - If format === "Carousel", executes 1 request per slide loop (3-5 standalone images).
+ * - Otherwise (Feed / Reels / Story), executes 1 single image request.
+ */
+export async function generateImageWithAI(
+  brief: {
+    title: string;
+    topic: string;
+    visualDirection: string;
+    format: string;
+    contentType: string;
+    keyPoints?: string[];
+  },
+  context: BusinessContext
+): Promise<ImageGenerationResult> {
+  const isCarousel = (brief.format || "").toLowerCase() === "carousel";
+
+  if (isCarousel) {
+    return generateCarouselImagesWithAI(brief, context);
+  }
+
+  // Single Image Flow (Feed, Reels, Story)
+  const isPortrait = brief.format.toLowerCase() === "story" || brief.format.toLowerCase() === "reels";
+  const size = isPortrait ? "1024x1792" : "1024x1024";
+
+  const visualPrompt = `Professional, high-aesthetic Instagram marketing visual for ${context.businessName} (${context.category}).
+Topic: ${brief.topic}.
+Creative Direction: ${brief.visualDirection || "Modern, clean, aesthetic composition"}.
+Brand Color Accents: Primary ${context.brandKit.primaryColor}, Secondary ${context.brandKit.secondaryColor}.
+Style: ${context.brandKit.visualStyle}, premium photography or clean modern graphic design, high resolution, soft balanced studio lighting.
+Strict Requirement: Do not render gibberish, broken, or misspellings of text inside the image. Keep it visually stunning and Instagram-ready.`;
+
+  const singleResult = await callOpenAIImageApi(visualPrompt, {
+    formatPrefix: brief.format.toLowerCase(),
+    size,
+    quality: context?.imageQuality || "medium",
+  });
+
+  if (!singleResult.success) {
+    return {
+      success: false,
+      error: singleResult.error || "Gagal membuat gambar dengan AI Image.",
+    };
+  }
+
+  return {
+    success: true,
+    mediaUrl: singleResult.mediaUrl,
+    mediaUrls: singleResult.mediaUrl ? [singleResult.mediaUrl] : [],
+    revisedPrompt: singleResult.revisedPrompt,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -806,6 +955,8 @@ export async function runLazyGenerationForPost(
     cta: captionRes.cta || post.cta,
     hashtags: captionRes.hashtags,
     mediaUrl: imageRes.mediaUrl,
+    mediaUrls: imageRes.mediaUrls || (imageRes.mediaUrl ? [imageRes.mediaUrl] : []),
+    carouselSlides: imageRes.carouselSlides || undefined,
     aiScore: reviewResult.score,
     aiReview: reviewResult,
     captionStatus,

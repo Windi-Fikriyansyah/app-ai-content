@@ -39,6 +39,7 @@ export default function ContentLibraryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFormat, setSelectedFormat] = useState<string>("All");
   const [activePost, setActivePost] = useState<ContentLibraryItem | null>(null);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isRepublishing, setIsRepublishing] = useState(false);
   const [republishMsg, setRepublishMsg] = useState<string | null>(null);
@@ -479,15 +480,107 @@ export default function ContentLibraryPage() {
                 </div>
               ) : null}
 
-              {/* Visual Media */}
-              {activePost.media_url ? (
-                <div className="space-y-1.5">
-                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
-                    Visual Instagram (Supabase Storage)
-                  </label>
-                  <div className="rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-72 w-full flex items-center justify-center">
-                    <img src={activePost.media_url} alt={activePost.title} className="w-full h-full object-cover" />
+              {/* Visual Media (Single or Multi-slide Carousel) */}
+              {activePost.media_url || (activePost.carousel_slides && activePost.carousel_slides.length > 0) ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-outline uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                      <span>Visual Instagram</span>
+                      {activePost.format?.toLowerCase() === "carousel" ? (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-mono text-[10px] font-bold border border-purple-200">
+                          Carousel · {activePost.carousel_slides?.length || activePost.media_urls?.length || 1} Slides
+                        </span>
+                      ) : (
+                        <span className="text-primary font-normal lowercase">1024x1024</span>
+                      )}
+                    </label>
                   </div>
+
+                  {activePost.format?.toLowerCase() === "carousel" &&
+                  ((activePost.carousel_slides && activePost.carousel_slides.length > 0) ||
+                    (activePost.media_urls && activePost.media_urls.length > 1)) ? (
+                    (() => {
+                      const slides =
+                        activePost.carousel_slides && activePost.carousel_slides.length > 0
+                          ? activePost.carousel_slides.map((s, idx) => ({
+                              slide: s.slide || idx + 1,
+                              imageUrl: s.imageUrl,
+                              title: s.title || `Slide ${idx + 1}`,
+                            }))
+                          : (activePost.media_urls || [activePost.media_url!]).map((url, idx) => ({
+                              slide: idx + 1,
+                              imageUrl: url,
+                              title: `Slide ${idx + 1}`,
+                            }));
+
+                      const currentIndex = Math.min(activeSlideIndex, slides.length - 1);
+                      const currentSlide = slides[currentIndex] || slides[0];
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="relative rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-72 w-full flex items-center justify-center group">
+                            <img
+                              src={currentSlide.imageUrl}
+                              alt={currentSlide.title || `Slide ${currentIndex + 1}`}
+                              className="w-full h-full object-cover transition-all duration-300"
+                            />
+
+                            {/* Slide Counter Overlay */}
+                            <div className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono font-bold shadow-md">
+                              Slide {currentIndex + 1} / {slides.length}
+                            </div>
+
+                            {/* Prev Button */}
+                            {slides.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))}
+                                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 hover:bg-white text-on-surface shadow-md flex items-center justify-center cursor-pointer transition-all opacity-80 hover:opacity-100 text-sm font-bold"
+                              >
+                                ‹
+                              </button>
+                            )}
+
+                            {/* Next Button */}
+                            {slides.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 hover:bg-white text-on-surface shadow-md flex items-center justify-center cursor-pointer transition-all opacity-80 hover:opacity-100 text-sm font-bold"
+                              >
+                                ›
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Thumbnails */}
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                            {slides.map((s, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setActiveSlideIndex(idx)}
+                                className={`relative shrink-0 w-11 h-11 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                                  idx === currentIndex
+                                    ? "border-primary ring-2 ring-primary/30 scale-105"
+                                    : "border-outline-variant/30 opacity-70 hover:opacity-100"
+                                }`}
+                              >
+                                <img src={s.imageUrl} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover" />
+                                <span className="absolute bottom-0 right-0 px-1 rounded-tl-md bg-black/70 text-[9px] font-mono text-white font-bold">
+                                  {idx + 1}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-72 w-full flex items-center justify-center">
+                      <img src={activePost.media_url!} alt={activePost.title} className="w-full h-full object-cover" />
+                    </div>
+                  )}
                 </div>
               ) : null}
 

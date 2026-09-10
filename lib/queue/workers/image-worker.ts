@@ -27,15 +27,28 @@ export function createImageWorker() {
 
         const hasCaption = Boolean(postData?.caption);
 
-        await supabase
+        const updatePayload: Record<string, any> = {
+          media_url: result.mediaUrl,
+          media_urls: result.mediaUrls || [result.mediaUrl],
+          carousel_slides: result.carouselSlides || null,
+          image_status: "COMPLETED",
+          generation_error: null,
+          ...(hasCaption ? { status: "READY FOR APPROVAL" } : {}),
+        };
+
+        const { error: imgUpdateErr } = await supabase
           .from("content_posts")
-          .update({
-            media_url: result.mediaUrl,
-            image_status: "COMPLETED",
-            generation_error: null,
-            ...(hasCaption ? { status: "READY FOR APPROVAL" } : {}),
-          })
+          .update(updatePayload)
           .eq("id", postId);
+
+        if (imgUpdateErr) {
+          delete updatePayload.media_urls;
+          delete updatePayload.carousel_slides;
+          await supabase
+            .from("content_posts")
+            .update(updatePayload)
+            .eq("id", postId);
+        }
       } else {
         await supabase
           .from("content_posts")

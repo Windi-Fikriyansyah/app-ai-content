@@ -88,6 +88,7 @@ export default function ContentCalendarPage() {
 
   // Modal Detail State for Lazy Generation Post Brief
   const [activePost, setActivePost] = useState<ContentPlanItem | null>(null);
+  const [activeCarouselSlideIndex, setActiveCarouselSlideIndex] = useState(0);
   const [isGeneratingLazy, setIsGeneratingLazy] = useState(false);
   const [modalQuality, setModalQuality] = useState<"low" | "medium" | "high" | "auto">("medium");
   const [lazyFeedback, setLazyFeedback] = useState<{
@@ -1531,32 +1532,132 @@ export default function ContentCalendarPage() {
                 </div>
               )}
 
-              {/* Visual Image Rendered by GPT Image */}
-              {activePost.media_url ? (
-                <div className="space-y-1.5">
+              {/* Visual Image Rendered by GPT Image / Multi-slide Carousel */}
+              {activePost.media_url || (activePost.carousel_slides && activePost.carousel_slides.length > 0) ? (
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="font-bold text-outline uppercase tracking-wider text-[10px] flex items-center gap-1">
-                      <span>Visual Instagram (GPT Image)</span>
-                      <span className="text-primary font-normal lowercase">1024x1024</span>
+                    <label className="font-bold text-outline uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                      <span>Visual Instagram</span>
+                      {activePost.format?.toLowerCase() === "carousel" ? (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-mono text-[10px] font-bold border border-purple-200">
+                          Carousel · {activePost.carousel_slides?.length || activePost.media_urls?.length || 1} Slides
+                        </span>
+                      ) : (
+                        <span className="text-primary font-normal lowercase">1024x1024</span>
+                      )}
                     </label>
                     <button
                       type="button"
                       onClick={() => handleRetryImage(activePost.id!)}
                       disabled={isRetryingImage || isGeneratingLazy}
                       className="text-[11px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-colors"
-                      title="Generate ulang gambar ini"
+                      title={activePost.format?.toLowerCase() === "carousel" ? "Generate ulang semua slide carousel" : "Generate ulang gambar ini"}
                     >
                       <RotateCw className={`w-3 h-3 ${isRetryingImage ? "animate-spin" : ""}`} />
                       <span>{isRetryingImage ? "Memproses..." : "Ganti / Request Ulang"}</span>
                     </button>
                   </div>
-                  <div className="rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-80 w-full flex items-center justify-center shadow-xs">
-                    <img
-                      src={activePost.media_url}
-                      alt={activePost.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+
+                  {/* Multi-Slide Carousel Viewer */}
+                  {activePost.format?.toLowerCase() === "carousel" &&
+                  ((activePost.carousel_slides && activePost.carousel_slides.length > 0) ||
+                    (activePost.media_urls && activePost.media_urls.length > 1)) ? (
+                    (() => {
+                      const slides =
+                        activePost.carousel_slides && activePost.carousel_slides.length > 0
+                          ? activePost.carousel_slides.map((s, idx) => ({
+                              slide: s.slide || idx + 1,
+                              imageUrl: s.imageUrl,
+                              title: s.title || `Slide ${idx + 1}`,
+                            }))
+                          : (activePost.media_urls || [activePost.media_url!]).map((url, idx) => ({
+                              slide: idx + 1,
+                              imageUrl: url,
+                              title: `Slide ${idx + 1}`,
+                            }));
+
+                      const currentIndex = Math.min(activeCarouselSlideIndex, slides.length - 1);
+                      const currentSlide = slides[currentIndex] || slides[0];
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="relative rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-80 w-full flex items-center justify-center shadow-xs group">
+                            <img
+                              src={currentSlide.imageUrl}
+                              alt={currentSlide.title || `Slide ${currentIndex + 1}`}
+                              className="w-full h-full object-cover transition-all duration-300"
+                            />
+
+                            {/* Slide Counter Overlay */}
+                            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-mono font-bold shadow-md">
+                              Slide {currentIndex + 1} / {slides.length}
+                            </div>
+
+                            {/* Slide Title Overlay */}
+                            {currentSlide.title && (
+                              <div className="absolute bottom-3 left-3 right-3 px-3 py-1.5 rounded-xl bg-black/65 backdrop-blur-xs text-white text-[11px] font-medium shadow-md truncate">
+                                {currentSlide.title}
+                              </div>
+                            )}
+
+                            {/* Left Prev Button */}
+                            {slides.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveCarouselSlideIndex((prev) => (prev > 0 ? prev - 1 : slides.length - 1))}
+                                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-on-surface shadow-md flex items-center justify-center cursor-pointer transition-all opacity-80 hover:opacity-100"
+                                title="Slide sebelumnya"
+                              >
+                                ‹
+                              </button>
+                            )}
+
+                            {/* Right Next Button */}
+                            {slides.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveCarouselSlideIndex((prev) => (prev < slides.length - 1 ? prev + 1 : 0))}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-on-surface shadow-md flex items-center justify-center cursor-pointer transition-all opacity-80 hover:opacity-100"
+                                title="Slide berikutnya"
+                              >
+                                ›
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Slide Thumbnails Selector */}
+                          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
+                            {slides.map((s, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setActiveCarouselSlideIndex(idx)}
+                                className={`relative shrink-0 w-12 h-12 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                                  idx === currentIndex
+                                    ? "border-primary ring-2 ring-primary/30 scale-105"
+                                    : "border-outline-variant/30 opacity-70 hover:opacity-100"
+                                }`}
+                              >
+                                <img src={s.imageUrl} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                                <span className="absolute bottom-0 right-0 px-1 rounded-tl-md bg-black/70 text-[9px] font-mono text-white font-bold">
+                                  {idx + 1}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    /* Single Image Preview (Standard Feed/Reels/Story) */
+                    <div className="rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-80 w-full flex items-center justify-center shadow-xs">
+                      <img
+                        src={activePost.media_url!}
+                        alt={activePost.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 activePost.status !== "PLANNED" && !isGeneratingLazy && (

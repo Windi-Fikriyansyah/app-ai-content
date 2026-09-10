@@ -276,26 +276,37 @@ export function createGenerationWorker() {
 
       // 5. Update Post Record
       console.log(`[Worker:content-generation] 💾 Saving result to Supabase (Status: ${finalStatus})...`);
+      const fullUpdatePayload: Record<string, any> = {
+        status: finalStatus,
+        caption: captionResult.caption || post.caption,
+        hook: captionResult.hook || post.hook,
+        cta: captionResult.cta || post.cta,
+        hashtags: captionResult.hashtags || post.hashtags,
+        media_url: imageResult.mediaUrl || post.media_url,
+        media_urls: imageResult.mediaUrls || (imageResult.mediaUrl ? [imageResult.mediaUrl] : post.media_urls || null),
+        carousel_slides: imageResult.carouselSlides || post.carousel_slides || null,
+        caption_status: captionResult.success ? "COMPLETED" : "FAILED",
+        image_status: imageResult.success ? "COMPLETED" : "FAILED",
+        ai_score: reviewResult.score,
+        ai_review: reviewResult,
+        generation_error: errorMessage || null,
+        generated_at: new Date().toISOString(),
+      };
+
       const { error: updateErr } = await supabase
         .from("content_posts")
-        .update({
-          status: finalStatus,
-          caption: captionResult.caption || post.caption,
-          hook: captionResult.hook || post.hook,
-          cta: captionResult.cta || post.cta,
-          hashtags: captionResult.hashtags || post.hashtags,
-          media_url: imageResult.mediaUrl || post.media_url,
-          caption_status: captionResult.success ? "COMPLETED" : "FAILED",
-          image_status: imageResult.success ? "COMPLETED" : "FAILED",
-          ai_score: reviewResult.score,
-          ai_review: reviewResult,
-          generation_error: errorMessage || null,
-          generated_at: new Date().toISOString(),
-        })
+        .update(fullUpdatePayload)
         .eq("id", postId);
 
       if (updateErr) {
-        console.error(`[Worker:content-generation] ⚠️ Database update error:`, updateErr.message);
+        console.warn(`[Worker:content-generation] ⚠️ Database update error with new columns, retrying fallback:`, updateErr.message);
+        // Fallback without media_urls/carousel_slides in case migration is pending
+        delete fullUpdatePayload.media_urls;
+        delete fullUpdatePayload.carousel_slides;
+        await supabase
+          .from("content_posts")
+          .update(fullUpdatePayload)
+          .eq("id", postId);
       }
 
       await job.updateProgress(100);
