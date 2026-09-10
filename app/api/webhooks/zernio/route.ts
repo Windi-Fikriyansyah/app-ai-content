@@ -14,15 +14,35 @@ export async function POST(req: NextRequest) {
     const payload = await req.json().catch(() => ({}));
     console.log(`[Webhook:Zernio] 📨 Incoming payload:`, JSON.stringify(payload));
 
-    // Extract event and post identifier
-    const event = (payload.event || payload.type || payload.status || "published").toLowerCase();
+    // Extract event
+    const event = (payload.event || payload.type || payload.status || "").toLowerCase();
+    const xLateEvent = req.headers.get("x-late-event")?.toLowerCase();
+
+    // 0. Handle Zernio test ping / test delivery event
+    if (
+      event === "webhook.test" ||
+      xLateEvent === "webhook.test" ||
+      payload.message?.includes("test webhook") ||
+      payload.message?.includes("Zernio")
+    ) {
+      console.log(`[Webhook:Zernio] 🧪 Received test webhook from Zernio! Test ID: ${payload.id}`);
+      return NextResponse.json({
+        success: true,
+        message: "Test webhook received and verified successfully from Zernio!",
+        id: payload.id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Resolve post identifier (Zernio ID)
     const zernioPostId =
       payload.zernio_post_id ||
       payload.zernioPostId ||
       payload.postId ||
       payload.post_id ||
-      payload.data?.id ||
       payload.data?.postId ||
+      payload.data?.id ||
+      payload.data?.zernio_post_id ||
       payload.id;
 
     if (!zernioPostId) {
@@ -151,4 +171,20 @@ export async function GET() {
     endpoint: "/api/webhooks/zernio",
     supportedEvents: ["post.scheduled", "post.publishing", "post.published", "post.failed"],
   });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Allow": "GET, POST, OPTIONS, HEAD",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Late-Event, X-Late-Event-Id, X-Late-Signature",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+export async function HEAD() {
+  return new NextResponse(null, { status: 200 });
 }

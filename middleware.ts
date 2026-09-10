@@ -48,10 +48,15 @@ export async function middleware(request: NextRequest) {
 
   const isLoginPage = request.nextUrl.pathname === "/login";
   const isOnboardingPage = request.nextUrl.pathname === "/onboarding";
-  const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/callback");
 
-  // Allow auth callback through
-  if (isAuthCallback) {
+  // Allow public routes (auth callback, webhooks from external services like Zernio, cron, queue status)
+  const isPublicRoute =
+    request.nextUrl.pathname.startsWith("/auth/callback") ||
+    request.nextUrl.pathname.startsWith("/api/webhooks") ||
+    request.nextUrl.pathname.startsWith("/api/cron") ||
+    request.nextUrl.pathname.startsWith("/api/queue/status");
+
+  if (isPublicRoute) {
     return supabaseResponse;
   }
 
