@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Bot, LogOut, Shield } from "lucide-react";
 import { logoutUser } from "./onboarding/actions";
 
 export const metadata: Metadata = {
@@ -19,13 +20,7 @@ export default function OnboardingLayout({
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-on-primary shadow-xs">
-              <span
-                className="material-symbols-outlined text-[20px]"
-                data-icon="smart_toy"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                smart_toy
-              </span>
+              <Bot className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -54,9 +49,7 @@ export default function OnboardingLayout({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error-container/40 transition-colors cursor-pointer"
                 title="Keluar dari akun saat ini"
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  logout
-                </span>
+                <LogOut className="w-[18px] h-[18px]" />
                 <span className="hidden sm:inline">Keluar</span>
               </button>
             </form>
@@ -75,7 +68,7 @@ export default function OnboardingLayout({
           <span>© 2026 AutoContent AI Inc. Hak cipta dilindungi.</span>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">shield</span>
+              <Shield className="w-3.5 h-3.5" />
               Enkripsi 256-bit
             </span>
             <span>•</span>

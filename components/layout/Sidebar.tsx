@@ -4,6 +4,46 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutUser } from "@/app/(onboarding)/onboarding/actions";
+import {
+  Sparkles,
+  X,
+  ChevronsUpDown,
+  PlusCircle,
+  LayoutDashboard,
+  Bot,
+  FileEdit,
+  Sliders,
+  Activity,
+  ChevronDown,
+  Calendar,
+  FolderOpen,
+  Share2,
+  BarChart3,
+  Settings,
+  Zap,
+  BookOpen,
+  Terminal,
+  LogOut,
+  LucideIcon,
+} from "lucide-react";
+
+interface SubNavItem {
+  name: string;
+  icon: LucideIcon;
+  href: string;
+  hasPulse?: boolean;
+}
+
+interface NavItem {
+  name: string;
+  icon: LucideIcon;
+  href?: string;
+  exact?: boolean;
+  isAccordion?: boolean;
+  subItems?: SubNavItem[];
+  badge?: string;
+  socialTags?: string[];
+}
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -14,31 +54,31 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isAiAgentOpen, setIsAiAgentOpen] = useState(true);
 
-  const navItems = [
+  const navItems: NavItem[] = [
     {
       name: "Dashboard",
-      icon: "dashboard",
+      icon: LayoutDashboard,
       href: "/",
       exact: true,
     },
     {
       name: "AI Agent",
-      icon: "smart_toy",
+      icon: Bot,
       isAccordion: true,
       subItems: [
         {
           name: "Content Generation",
-          icon: "edit_note",
+          icon: FileEdit,
           href: "/ai-agent/content-generation",
         },
         {
           name: "Automation",
-          icon: "settings_suggest",
+          icon: Sliders,
           href: "/ai-agent/automation",
         },
         {
           name: "Agent Activity",
-          icon: "sensors",
+          icon: Activity,
           href: "/ai-agent/activity",
           hasPulse: true,
         },
@@ -46,29 +86,29 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     },
     {
       name: "Content Calendar",
-      icon: "calendar_month",
+      icon: Calendar,
       href: "/content-calendar",
       badge: "14",
     },
     {
       name: "Content Library",
-      icon: "folder_open",
+      icon: FolderOpen,
       href: "/content-library",
     },
     {
       name: "Social Accounts",
-      icon: "share",
+      icon: Share2,
       href: "/social-accounts",
       socialTags: ["IG", "in", "𝕏"],
     },
     {
       name: "Analytics",
-      icon: "analytics",
+      icon: BarChart3,
       href: "/analytics",
     },
     {
       name: "Settings",
-      icon: "settings",
+      icon: Settings,
       href: "/settings",
     },
   ];
@@ -103,9 +143,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           <div className="flex items-center justify-between px-space-xs">
             <Link href="/" className="flex items-center gap-space-sm group">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary shadow-sm ring-2 ring-primary/20 group-hover:scale-105 transition-transform">
-                <span className="material-symbols-outlined text-lg" data-icon="auto_awesome">
-                  auto_awesome
-                </span>
+                <Sparkles className="w-4 h-4" />
               </div>
               <div>
                 <span className="font-headline-sm text-headline-sm font-bold text-on-surface tracking-tight block leading-tight">
@@ -121,10 +159,10 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             {onClose && (
               <button
                 onClick={onClose}
-                className="lg:hidden p-1 text-outline hover:text-on-surface rounded-md hover:bg-surface"
+                className="lg:hidden p-1.5 text-outline hover:text-on-surface rounded-md hover:bg-surface transition-colors"
                 aria-label="Close menu"
               >
-                <span className="material-symbols-outlined text-lg">close</span>
+                <X className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -145,22 +183,20 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 </div>
               </div>
             </div>
-            <span className="material-symbols-outlined text-outline text-base" data-icon="unfold_more">
-              unfold_more
-            </span>
+            <ChevronsUpDown className="w-4 h-4 text-outline shrink-0" />
           </div>
 
           {/* New Workflow Quick Action CTA */}
-          <button className="w-full flex items-center justify-center gap-space-sm bg-primary hover:bg-primary-container text-on-primary rounded-lg py-2.5 px-space-md font-label-md text-label-md shadow-sm transition-transform active:scale-[0.98]">
-            <span className="material-symbols-outlined text-base" data-icon="add_circle">
-              add_circle
-            </span>
+          <button className="w-full flex items-center justify-center gap-space-sm bg-primary hover:bg-primary-container text-on-primary rounded-lg py-2.5 px-space-md font-label-md text-label-md shadow-sm transition-transform active:scale-[0.98] cursor-pointer">
+            <PlusCircle className="w-4 h-4" />
             <span>New Workflow</span>
           </button>
 
           {/* Navigation Tabs (9 Items) */}
           <nav className="flex flex-col gap-1">
             {navItems.map((item) => {
+              const ItemIcon = item.icon;
+
               if (item.isAccordion && item.subItems) {
                 const isAnySubActive = item.subItems.some((sub) =>
                   pathname.startsWith(sub.href)
@@ -178,34 +214,29 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                       }`}
                     >
                       <div className="flex items-center gap-space-sm">
-                        <span
-                          className={`material-symbols-outlined transition-colors ${
+                        <ItemIcon
+                          className={`w-4 h-4 shrink-0 transition-colors ${
                             isAnySubActive
                               ? "text-primary"
                               : "text-outline group-hover:text-primary"
                           }`}
-                          data-icon={item.icon}
-                        >
-                          {item.icon}
-                        </span>
+                        />
                         <span className="font-label-md text-label-md">
                           {item.name}
                         </span>
                       </div>
-                      <span
-                        className={`material-symbols-outlined text-outline text-sm transition-transform duration-200 ${
+                      <ChevronDown
+                        className={`w-4 h-4 text-outline shrink-0 transition-transform duration-200 ${
                           isAiAgentOpen ? "rotate-180" : ""
                         }`}
-                        data-icon="expand_more"
-                      >
-                        expand_more
-                      </span>
+                      />
                     </button>
 
                     {/* Sub-items Accordion Tree */}
                     {isAiAgentOpen && (
                       <div className="ml-6 pl-3 border-l border-outline-variant/40 flex flex-col gap-1 my-1">
                         {item.subItems.map((sub) => {
+                          const SubIcon = sub.icon;
                           const subActive = isLinkActive(sub.href);
                           return (
                             <Link
@@ -219,18 +250,15 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                               }`}
                             >
                               <div className="flex items-center gap-space-sm">
-                                <span
-                                  className={`material-symbols-outlined text-sm ${
+                                <SubIcon
+                                  className={`w-4 h-4 shrink-0 ${
                                     sub.hasPulse
                                       ? "text-tertiary"
                                       : subActive
                                       ? "text-primary"
                                       : "text-outline"
                                   }`}
-                                  data-icon={sub.icon}
-                                >
-                                  {sub.icon}
-                                </span>
+                                />
                                 <span className="font-label-sm text-label-sm">
                                   {sub.name}
                                 </span>
@@ -264,14 +292,11 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   }`}
                 >
                   <div className="flex items-center gap-space-sm">
-                    <span
-                      className={`material-symbols-outlined ${
-                        active ? "fill-icon text-primary" : "text-outline"
+                    <ItemIcon
+                      className={`w-4 h-4 shrink-0 ${
+                        active ? "text-primary" : "text-outline"
                       }`}
-                      data-icon={item.icon}
-                    >
-                      {item.icon}
-                    </span>
+                    />
                     <span className="font-label-md text-label-md">
                       {item.name}
                     </span>
@@ -315,9 +340,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           <div className="p-space-sm rounded-lg bg-surface border border-outline-variant/40 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-primary text-sm" data-icon="bolt">
-                  bolt
-                </span>
+                <Zap className="w-3.5 h-3.5 text-primary" />
                 <span className="font-label-sm text-label-sm text-on-surface">AI Credits</span>
               </div>
               <span className="font-code-sm text-code-sm text-primary font-semibold">84.5%</span>
@@ -335,16 +358,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
           {/* Ancillary Docs Links */}
           <div className="flex items-center justify-between text-xs px-1 text-outline">
-            <a href="#" className="flex items-center gap-1 hover:text-on-surface transition-colors">
-              <span className="material-symbols-outlined text-sm" data-icon="menu_book">
-                menu_book
-              </span>
+            <a href="#" className="flex items-center gap-1.5 hover:text-on-surface transition-colors">
+              <BookOpen className="w-3.5 h-3.5" />
               <span className="font-label-sm text-label-sm">Docs & Support</span>
             </a>
-            <a href="#" className="flex items-center gap-1 hover:text-on-surface transition-colors">
-              <span className="material-symbols-outlined text-sm" data-icon="terminal">
-                terminal
-              </span>
+            <a href="#" className="flex items-center gap-1.5 hover:text-on-surface transition-colors">
+              <Terminal className="w-3.5 h-3.5" />
               <span className="font-label-sm text-label-sm">API Status</span>
             </a>
           </div>
@@ -374,9 +393,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 className="p-1.5 rounded-lg text-outline hover:text-error hover:bg-error-container/40 transition-colors cursor-pointer flex items-center justify-center"
                 title="Keluar / Logout"
               >
-                <span className="material-symbols-outlined text-base" data-icon="logout">
-                  logout
-                </span>
+                <LogOut className="w-4 h-4" />
               </button>
             </form>
           </div>

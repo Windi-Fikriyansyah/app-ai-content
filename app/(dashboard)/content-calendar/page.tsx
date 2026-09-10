@@ -2,6 +2,33 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import {
+  CalendarDays,
+  Table,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Calendar,
+  Layers,
+  Video,
+  ImageIcon,
+  X,
+  CheckCircle2,
+  AlertTriangle,
+  BadgeCheck,
+  AlertCircle,
+  Check,
+  Copy,
+  Lightbulb,
+  Wand2,
+  Clock,
+  RotateCw,
+  RefreshCw,
+  Send,
+  Hourglass,
+  ImageOff,
+} from "lucide-react";
 import { get30DayPlanStatus } from "../ai-agent/content-generation/planner-actions";
 import {
   enqueueSinglePostLazyGenAction,
@@ -715,7 +742,7 @@ export default function ContentCalendarPage() {
                   : "text-outline hover:text-on-surface"
               }`}
             >
-              <span className="material-symbols-outlined text-base">calendar_view_month</span>
+              <CalendarDays className="w-4 h-4" />
               <span>Month Grid</span>
             </button>
             <button
@@ -727,7 +754,7 @@ export default function ContentCalendarPage() {
                   : "text-outline hover:text-on-surface"
               }`}
             >
-              <span className="material-symbols-outlined text-base">table_rows</span>
+              <Table className="w-4 h-4" />
               <span>Table List</span>
             </button>
           </div>
@@ -736,7 +763,7 @@ export default function ContentCalendarPage() {
             href="/ai-agent/content-generation"
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary to-primary-container hover:opacity-95 text-on-primary rounded-xl font-label-md text-xs sm:text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
           >
-            <span className="material-symbols-outlined text-base">auto_awesome</span>
+            <Sparkles className="w-4 h-4" />
             <span>+ Generate 30-Day Plan</span>
           </Link>
         </div>
@@ -755,7 +782,7 @@ export default function ContentCalendarPage() {
               className="w-9 h-9 rounded-xl border border-outline-variant/40 hover:bg-surface-container flex items-center justify-center text-on-surface transition-colors cursor-pointer"
               title="Bulan Sebelumnya"
             >
-              <span className="material-symbols-outlined text-lg">chevron_left</span>
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               type="button"
@@ -763,7 +790,7 @@ export default function ContentCalendarPage() {
               className="w-9 h-9 rounded-xl border border-outline-variant/40 hover:bg-surface-container flex items-center justify-center text-on-surface transition-colors cursor-pointer"
               title="Bulan Berikutnya"
             >
-              <span className="material-symbols-outlined text-lg">chevron_right</span>
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
@@ -823,16 +850,14 @@ export default function ContentCalendarPage() {
           ═══════════════════════════════════════════════════════════════════ */}
       {loading ? (
         <div className="py-24 flex flex-col items-center justify-center text-outline gap-3 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
-          <span className="material-symbols-outlined animate-spin text-4xl text-primary">
-            progress_activity
-          </span>
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
           <span className="text-sm font-medium">Memuat Content Calendar 30 Hari...</span>
         </div>
       ) : plans.length === 0 ? (
         /* Empty State */
         <div className="bg-surface-container-lowest rounded-3xl border-2 border-dashed border-outline-variant/40 p-12 text-center flex flex-col items-center justify-center">
           <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4">
-            <span className="material-symbols-outlined text-4xl">calendar_month</span>
+            <Calendar className="w-10 h-10" />
           </div>
           <h3 className="font-headline-sm text-xl font-bold text-on-surface">
             Belum Ada Kalender Konten Terjadwal
@@ -844,7 +869,7 @@ export default function ContentCalendarPage() {
             href="/ai-agent/content-generation"
             className="px-6 py-3 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-label-md text-sm font-bold shadow-md transition-all flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-base">auto_awesome</span>
+            <Sparkles className="w-4 h-4" />
             <span>✨ Generate 30-Day Plan Sekarang</span>
           </Link>
         </div>
@@ -1021,14 +1046,14 @@ export default function ContentCalendarPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-outline whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 font-semibold text-on-surface-variant">
-                        <span className="material-symbols-outlined text-sm">
-                          {plan.format === "Carousel"
-                            ? "view_carousel"
-                            : plan.format === "Reels"
-                            ? "movie"
-                            : "image"}
-                        </span>
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-on-surface-variant">
+                        {plan.format === "Carousel" ? (
+                          <Layers className="w-4 h-4" />
+                        ) : plan.format === "Reels" ? (
+                          <Video className="w-4 h-4" />
+                        ) : (
+                          <ImageIcon className="w-4 h-4" />
+                        )}
                         <span>{plan.format}</span>
                       </span>
                     </td>
@@ -1144,7 +1169,7 @@ export default function ContentCalendarPage() {
                 }}
                 className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container cursor-pointer shrink-0"
               >
-                <span className="material-symbols-outlined text-base">close</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1161,21 +1186,13 @@ export default function ContentCalendarPage() {
                       : "bg-red-50 border-red-200 text-red-900"
                   }`}
                 >
-                  <span
-                    className={`material-symbols-outlined text-base ${
-                      lazyFeedback.type === "success"
-                        ? "text-emerald-600"
-                        : lazyFeedback.type === "info"
-                        ? "text-indigo-600 animate-spin"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {lazyFeedback.type === "success"
-                      ? "check_circle"
-                      : lazyFeedback.type === "info"
-                      ? "progress_activity"
-                      : "error"}
-                  </span>
+                  {lazyFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : lazyFeedback.type === "info" ? (
+                    <Loader2 className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  )}
                   <span className="font-medium flex-1">{lazyFeedback.message}</span>
                 </div>
               )}
@@ -1184,9 +1201,7 @@ export default function ContentCalendarPage() {
               {isGeneratingLazy && (
                 <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-300/40 text-amber-950 space-y-3 animate-in fade-in duration-200">
                   <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
-                    <span className="material-symbols-outlined text-base animate-spin text-amber-600">
-                      progress_activity
-                    </span>
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
                     <span>Menjalankan Lazy Generation (Parallel Worker)...</span>
                   </div>
                   <div className="space-y-2 text-xs">
@@ -1209,9 +1224,6 @@ export default function ContentCalendarPage() {
               {/* ═════════════════════════════════════════════════════════════
                   AI REVIEWER BOX (When Post has Caption & Image / Reviewed)
                   ═════════════════════════════════════════════════════════════ */}
-              {/* ═════════════════════════════════════════════════════════════
-                  AI REVIEWER BOX (When Post has Caption & Image / Reviewed)
-                  ═════════════════════════════════════════════════════════════ */}
               {(activePost.status === "READY FOR APPROVAL" ||
                 activePost.status === "APPROVED" ||
                 activePost.status === "NEEDS_REVISION" ||
@@ -1230,13 +1242,11 @@ export default function ContentCalendarPage() {
                     >
                       <div className="flex flex-wrap items-center justify-between border-b border-outline-variant/20 pb-2.5 gap-2">
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`material-symbols-outlined text-lg ${
-                              isBelowThreshold ? "text-amber-600" : "text-emerald-600"
-                            }`}
-                          >
-                            {isBelowThreshold ? "warning" : "verified"}
-                          </span>
+                          {isBelowThreshold ? (
+                            <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          ) : (
+                            <BadgeCheck className="w-4 h-4 text-emerald-600" />
+                          )}
                           <span className="font-bold text-on-surface text-sm">AI Review & Quality Score</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1266,13 +1276,11 @@ export default function ContentCalendarPage() {
                           ]
                         ).map((chk: any, idx: number) => (
                           <div key={idx} className="flex items-center gap-1.5 font-medium text-on-surface">
-                            <span
-                              className={`material-symbols-outlined text-sm ${
-                                chk.passed ? "text-emerald-600 font-bold" : "text-amber-500"
-                              }`}
-                            >
-                              {chk.passed ? "check" : "close"}
-                            </span>
+                            {chk.passed ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600 font-bold" />
+                            ) : (
+                              <X className="w-3.5 h-3.5 text-amber-500" />
+                            )}
                             <span>{chk.label}</span>
                           </div>
                         ))}
@@ -1282,7 +1290,7 @@ export default function ContentCalendarPage() {
                       {activePost.ai_review?.issues && activePost.ai_review.issues.length > 0 && (
                         <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-300/80 text-amber-950 text-xs space-y-1">
                           <div className="font-bold flex items-center gap-1.5 text-amber-900">
-                            <span className="material-symbols-outlined text-sm text-amber-600">report_problem</span>
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                             <span>Catatan Evaluasi (Perlu Direvisi):</span>
                           </div>
                           <ul className="list-disc list-inside space-y-0.5 text-amber-900/90 text-[11px]">
@@ -1297,7 +1305,7 @@ export default function ContentCalendarPage() {
                       {activePost.ai_review?.suggestions && activePost.ai_review.suggestions.length > 0 && (
                         <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-200 text-blue-950 text-xs space-y-1">
                           <div className="font-bold flex items-center gap-1.5 text-blue-900">
-                            <span className="material-symbols-outlined text-sm text-blue-600">tips_and_updates</span>
+                            <Lightbulb className="w-3.5 h-3.5 text-blue-600" />
                             <span>Rekomendasi Perbaikan AI:</span>
                           </div>
                           <ul className="list-disc list-inside space-y-0.5 text-blue-900/90 text-[11px]">
@@ -1312,7 +1320,7 @@ export default function ContentCalendarPage() {
                       {isBelowThreshold && (
                         <div className="pt-2.5 border-t border-outline-variant/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                           <div className="text-[11px] text-amber-800 font-medium flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-base text-amber-600">auto_fix_high</span>
+                            <Wand2 className="w-4 h-4 text-amber-600" />
                             <span>AI dapat merevisi hook, isi, dan CTA agar lolos ambang batas.</span>
                           </div>
                           <button
@@ -1321,9 +1329,7 @@ export default function ContentCalendarPage() {
                             disabled={isRevising || isGeneratingLazy}
                             className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                           >
-                            <span className={`material-symbols-outlined text-sm ${isRevising ? "animate-spin" : ""}`}>
-                              {isRevising ? "progress_activity" : "auto_fix_high"}
-                            </span>
+                            <Wand2 className={`w-3.5 h-3.5 ${isRevising ? "animate-spin" : ""}`} />
                             <span>{isRevising ? "Sedang Merevisi..." : "🤖 Revisi Konten (AI)"}</span>
                           </button>
                         </div>
@@ -1362,7 +1368,7 @@ export default function ContentCalendarPage() {
                 <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
                   <div>
                     <div className="font-bold flex items-center gap-1.5 text-blue-900 text-xs">
-                      <span className="material-symbols-outlined text-base text-blue-600">schedule</span>
+                      <Clock className="w-4 h-4 text-blue-600" />
                       <span>Terjadwal Otomatis di Zernio (Instagram):</span>
                     </div>
                     <p className="text-[11px] text-blue-800 mt-0.5 leading-relaxed">
@@ -1382,9 +1388,7 @@ export default function ContentCalendarPage() {
                       className="px-3 py-1.5 rounded-xl border border-blue-200 bg-white hover:bg-blue-100/50 text-blue-900 font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Hapus jadwal lama di Zernio dan kirim ulang dengan data terbaru"
                     >
-                      <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
-                        {isRepublishing ? "progress_activity" : "refresh"}
-                      </span>
+                      <RotateCw className={`w-3.5 h-3.5 ${isRepublishing ? "animate-spin" : ""}`} />
                       <span>{isRepublishing ? "Menjadwalkan Ulang..." : "🔄 Publish Ulang"}</span>
                     </button>
 
@@ -1395,9 +1399,7 @@ export default function ContentCalendarPage() {
                       className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                       title="Simulasikan Zernio mengirimkan webhook bahwa konten telah terbit"
                     >
-                      <span className={`material-symbols-outlined text-sm ${isSimulatingWebhook ? "animate-spin" : ""}`}>
-                        {isSimulatingWebhook ? "progress_activity" : "send"}
-                      </span>
+                      <Send className={`w-3.5 h-3.5 ${isSimulatingWebhook ? "animate-spin" : ""}`} />
                       <span>{isSimulatingWebhook ? "Menerbitkan..." : "⚡ Test Webhook Publish"}</span>
                     </button>
                   </div>
@@ -1406,10 +1408,10 @@ export default function ContentCalendarPage() {
 
               {/* Zernio Published Banner */}
               {activePost.status === "PUBLISHED" && (
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-lg">check</span>
+                      <Check className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
@@ -1431,9 +1433,7 @@ export default function ContentCalendarPage() {
                     className="px-3.5 py-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-100/60 text-emerald-900 font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     title="Hapus postingan lama dan jadwalkan ulang ke Zernio"
                   >
-                    <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
-                      {isRepublishing ? "progress_activity" : "refresh"}
-                    </span>
+                    <RotateCw className={`w-3.5 h-3.5 ${isRepublishing ? "animate-spin" : ""}`} />
                     <span>{isRepublishing ? "Menerbitkan Ulang..." : "🔄 Publish Ulang"}</span>
                   </button>
                 </div>
@@ -1441,7 +1441,7 @@ export default function ContentCalendarPage() {
 
               {/* Sub-status: Caption ✓ | Image ✓ */}
               {(activePost.caption || activePost.media_url) && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 ${
                       activePost.caption
@@ -1449,9 +1449,11 @@ export default function ContentCalendarPage() {
                         : "bg-slate-100 text-slate-600"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-xs">
-                      {activePost.caption ? "check_circle" : "hourglass_empty"}
-                    </span>
+                    {activePost.caption ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Hourglass className="w-3.5 h-3.5 text-slate-400" />
+                    )}
                     <span>Caption {activePost.caption ? "✓" : "..."}</span>
                   </span>
 
@@ -1466,15 +1468,15 @@ export default function ContentCalendarPage() {
                         : "bg-slate-100 text-slate-600"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-xs">
-                      {activePost.media_url
-                        ? "check_circle"
-                        : activePost.image_status === "FAILED"
-                        ? "error"
-                        : activePost.image_status === "GENERATING"
-                        ? "progress_activity"
-                        : "hourglass_empty"}
-                    </span>
+                    {activePost.media_url ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : activePost.image_status === "FAILED" ? (
+                      <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                    ) : activePost.image_status === "GENERATING" ? (
+                      <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                    ) : (
+                      <Hourglass className="w-3.5 h-3.5 text-slate-400" />
+                    )}
                     <span>
                       Image{" "}
                       {activePost.media_url
@@ -1496,9 +1498,7 @@ export default function ContentCalendarPage() {
                       className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                       title="Request ulang pembuatan gambar"
                     >
-                      <span className={`material-symbols-outlined text-xs ${isRetryingImage ? "animate-spin" : ""}`}>
-                        refresh
-                      </span>
+                      <RotateCw className={`w-3 h-3 ${isRetryingImage ? "animate-spin" : ""}`} />
                       <span>{isRetryingImage ? "Memproses..." : "Request Ulang Image"}</span>
                     </button>
                   )}
@@ -1510,7 +1510,7 @@ export default function ContentCalendarPage() {
                 <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-200 text-red-950 text-xs space-y-2 animate-in fade-in duration-150">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-bold flex items-center gap-1.5 text-red-800">
-                      <span className="material-symbols-outlined text-base text-red-600">error</span>
+                      <AlertCircle className="w-4 h-4 text-red-600" />
                       <span>Generasi Gambar Gagal:</span>
                     </div>
                     <button
@@ -1519,9 +1519,7 @@ export default function ContentCalendarPage() {
                       disabled={isRetryingImage || isGeneratingLazy}
                       className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
-                      <span className={`material-symbols-outlined text-sm ${isRetryingImage ? "animate-spin" : ""}`}>
-                        refresh
-                      </span>
+                      <RotateCw className={`w-3.5 h-3.5 ${isRetryingImage ? "animate-spin" : ""}`} />
                       <span>{isRetryingImage ? "Sedang Memproses..." : "Request Ulang Image"}</span>
                     </button>
                   </div>
@@ -1548,9 +1546,7 @@ export default function ContentCalendarPage() {
                       className="text-[11px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-colors"
                       title="Generate ulang gambar ini"
                     >
-                      <span className={`material-symbols-outlined text-xs ${isRetryingImage ? "animate-spin" : ""}`}>
-                        refresh
-                      </span>
+                      <RotateCw className={`w-3 h-3 ${isRetryingImage ? "animate-spin" : ""}`} />
                       <span>{isRetryingImage ? "Memproses..." : "Ganti / Request Ulang"}</span>
                     </button>
                   </div>
@@ -1573,9 +1569,11 @@ export default function ContentCalendarPage() {
                     </label>
                     <div className="rounded-2xl border-2 border-dashed border-red-200/80 bg-red-50/20 p-6 flex flex-col items-center justify-center text-center space-y-3">
                       <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
-                        <span className={`material-symbols-outlined text-2xl ${isRetryingImage ? "animate-spin text-primary" : ""}`}>
-                          {isRetryingImage ? "progress_activity" : "broken_image"}
-                        </span>
+                        {isRetryingImage ? (
+                          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        ) : (
+                          <ImageOff className="w-6 h-6" />
+                        )}
                       </div>
                       <div className="space-y-1 max-w-sm">
                         <p className="font-bold text-on-surface text-xs">
@@ -1597,9 +1595,7 @@ export default function ContentCalendarPage() {
                         disabled={isRetryingImage || isGeneratingLazy}
                         className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        <span className={`material-symbols-outlined text-sm ${isRetryingImage ? "animate-spin" : ""}`}>
-                          refresh
-                        </span>
+                        <RotateCw className={`w-3.5 h-3.5 ${isRetryingImage ? "animate-spin" : ""}`} />
                         <span>{isRetryingImage ? "Sedang Memproses..." : "Request Ulang Image"}</span>
                       </button>
                     </div>
@@ -1649,7 +1645,7 @@ export default function ContentCalendarPage() {
                   </span>
                   {activePost.status === "PLANNED" && (
                     <span className="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs">schedule</span>
+                      <Clock className="w-3.5 h-3.5" />
                       <span>Lazy Generation H-1</span>
                     </span>
                   )}
@@ -1704,7 +1700,7 @@ export default function ContentCalendarPage() {
             </div>
 
             {/* Modal Footer Actions */}
-            <div className="p-4 border-t border-outline-variant/20 bg-surface flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="p-4 border-t border-outline-variant/20 bg-surface flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               {/* Pillar info & Image Quality selector */}
               <div className="flex flex-wrap items-center gap-3 self-start sm:self-center">
                 <span className="text-[11px] text-outline">
@@ -1714,7 +1710,7 @@ export default function ContentCalendarPage() {
                 {/* Inline Quality Selector for Lazy Generation */}
                 <div className="flex items-center gap-1.5 bg-surface-container/60 border border-outline-variant/30 px-2.5 py-1 rounded-xl text-xs">
                   <span className="text-[10px] text-outline font-bold uppercase tracking-wider flex items-center gap-1">
-                    <span className="material-symbols-outlined text-xs text-primary">image</span>
+                    <ImageIcon className="w-3.5 h-3.5 text-primary" />
                     Quality:
                   </span>
                   <div className="flex items-center gap-0.5">
@@ -1736,7 +1732,7 @@ export default function ContentCalendarPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                 {/* Button for PLANNED state */}
                 {activePost.status === "PLANNED" && (
                   <button
@@ -1745,7 +1741,7 @@ export default function ContentCalendarPage() {
                     disabled={isGeneratingLazy}
                     className="w-full sm:w-auto px-4 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
-                    <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                    <Sparkles className="w-4 h-4" />
                     <span>⚡ Generate Caption & Image (Lazy Gen)</span>
                   </button>
                 )}
@@ -1758,9 +1754,7 @@ export default function ContentCalendarPage() {
                     disabled={isRetryingImage || isGeneratingLazy}
                     className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
-                    <span className={`material-symbols-outlined text-sm ${isRetryingImage ? "animate-spin" : ""}`}>
-                      refresh
-                    </span>
+                    <RotateCw className={`w-3.5 h-3.5 ${isRetryingImage ? "animate-spin" : ""}`} />
                     <span>{isRetryingImage ? "Memproses..." : "Request Ulang Image"}</span>
                   </button>
                 )}
@@ -1776,9 +1770,7 @@ export default function ContentCalendarPage() {
                       disabled={isRevising || isGeneratingLazy}
                       className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
-                      <span className={`material-symbols-outlined text-sm ${isRevising ? "animate-spin" : ""}`}>
-                        {isRevising ? "progress_activity" : "auto_fix_high"}
-                      </span>
+                      <Wand2 className={`w-3.5 h-3.5 ${isRevising ? "animate-spin" : ""}`} />
                       <span>{isRevising ? "Sedang Merevisi..." : "🤖 Revisi Konten (AI)"}</span>
                     </button>
 
@@ -1803,7 +1795,7 @@ export default function ContentCalendarPage() {
                       disabled={isGeneratingLazy}
                       className="px-3 py-2 rounded-xl border border-outline-variant/40 hover:bg-surface text-outline hover:text-on-surface text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
-                      <span className="material-symbols-outlined text-sm">refresh</span>
+                      <RotateCw className="w-3.5 h-3.5" />
                       <span>Regenerate</span>
                     </button>
 
@@ -1813,7 +1805,7 @@ export default function ContentCalendarPage() {
                       disabled={isApproving}
                       className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
-                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                      <CheckCircle2 className="w-4 h-4" />
                       <span>{isApproving ? "Menyetujui..." : "✓ Approve & Jadwalkan Zernio"}</span>
                     </button>
                   </>
@@ -1828,9 +1820,7 @@ export default function ContentCalendarPage() {
                     className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     title="Simulasikan penerimaan webhook dari Zernio bahwa konten telah terbit ke Instagram"
                   >
-                    <span className={`material-symbols-outlined text-sm ${isSimulatingWebhook ? "animate-spin" : ""}`}>
-                      {isSimulatingWebhook ? "progress_activity" : "send"}
-                    </span>
+                    <Send className={`w-3.5 h-3.5 ${isSimulatingWebhook ? "animate-spin" : ""}`} />
                     <span>{isSimulatingWebhook ? "Menerbitkan..." : "⚡ Test Webhook Publish"}</span>
                   </button>
                 )}
@@ -1844,9 +1834,7 @@ export default function ContentCalendarPage() {
                     className="px-3.5 py-2 rounded-xl border border-outline-variant/40 bg-surface hover:bg-surface-container text-on-surface font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     title="Hapus jadwal/post sebelumnya di Zernio dan kirim jadwal baru dengan media terbaru"
                   >
-                    <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
-                      {isRepublishing ? "progress_activity" : "sync"}
-                    </span>
+                    <RotateCw className={`w-3.5 h-3.5 ${isRepublishing ? "animate-spin" : ""}`} />
                     <span>{isRepublishing ? "Menjadwalkan Ulang..." : "🔄 Publish Ulang (Zernio)"}</span>
                   </button>
                 )}
@@ -1854,7 +1842,7 @@ export default function ContentCalendarPage() {
                 {/* Display tag for PUBLISHED state */}
                 {activePost.status === "PUBLISHED" && (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                    <span className="material-symbols-outlined text-sm text-emerald-600">verified</span>
+                    <BadgeCheck className="w-4 h-4 text-emerald-600" />
                     <span>✓ Published on Instagram</span>
                   </div>
                 )}

@@ -1,22 +1,38 @@
 import React from "react";
+import {
+  Zap,
+  Brain,
+  Bot,
+  TrendingUp,
+  Cpu,
+  CheckCircle2,
+  Layers,
+  BarChart2,
+  ArrowUpRight,
+  MoreVertical,
+  Clapperboard,
+  ArrowRight,
+  ArrowLeftRight,
+  ChevronRight,
+  Globe,
+  Video,
+} from "lucide-react";
 
 export default function DashboardPage() {
   return (
     <>
       {/* SECTION 1: WELCOME HERO & QUICK PROMPT LAUNCHER */}
-      <section className="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-3 sm:p-space-xl shadow-sm relative overflow-hidden">
+      <section className="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 sm:p-space-xl shadow-sm relative overflow-hidden">
         {/* Subtle ambient laser glow backdrop */}
         <div className="absolute -right-20 -top-20 w-80 h-80 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute right-40 -bottom-20 w-60 h-60 bg-tertiary-fixed-dim/15 rounded-full blur-2xl pointer-events-none"></div>
 
         <div className="relative z-10 flex flex-col gap-space-lg">
           {/* Banner Header & Status */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-container text-primary font-label-sm text-label-sm mb-2 border border-primary/20">
-                <span className="material-symbols-outlined text-xs" data-icon="bolt">
-                  bolt
-                </span>
+                <Zap className="w-3.5 h-3.5" />
                 <span>Autonomous Pipeline Active</span>
               </div>
               <h1 className="font-headline-md text-headline-sm sm:text-headline-md text-on-surface tracking-tight">
@@ -32,7 +48,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Quick Metrics Micro-Trio */}
-            <div className="flex items-center gap-space-md border border-outline-variant/30 p-2.5 rounded-lg bg-surface/80 shrink-0">
+            <div className="flex items-center gap-3 sm:gap-space-md border border-outline-variant/30 p-2.5 rounded-lg bg-surface/80 shrink-0 self-start md:self-auto">
               <div className="px-2 text-center">
                 <span className="block font-code-sm text-xs text-outline">Queue</span>
                 <span className="font-headline-sm text-headline-sm text-on-surface font-bold">12 Post</span>
@@ -48,30 +64,26 @@ export default function DashboardPage() {
           {/* Inline Prompt Bar: Autonomous Prompt Launcher */}
           <div className="bg-surface rounded-xl border border-outline-variant/50 p-2 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
             <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-              <div className="flex items-center gap-2 px-3 text-primary">
-                <span className="material-symbols-outlined" data-icon="neurology">
-                  neurology
-                </span>
+              <div className="flex items-center gap-2 px-3 text-primary shrink-0">
+                <Brain className="w-5 h-5" />
               </div>
               <input
-                className="flex-1 bg-transparent border-0 font-body-md text-body-md text-on-surface focus:ring-0 focus:outline-none placeholder:text-outline text-sm"
+                className="flex-1 bg-transparent border-0 font-body-md text-body-md text-on-surface focus:ring-0 focus:outline-none placeholder:text-outline text-xs sm:text-sm px-2 py-1.5"
                 placeholder="Ketik ide atau topik: misal 'Buat 5 carousel LinkedIn tentang tren AI 2025 dengan tone profesional'..."
                 type="text"
                 defaultValue="Buat 5 carousel LinkedIn tentang tren AI 2025 dengan tone profesional dan studi kasus B2B SaaS"
               />
-              <div className="flex items-center gap-2 justify-end pt-2 md:pt-0 border-t md:border-t-0 border-outline-variant/30">
+              <div className="flex flex-wrap items-center gap-2 justify-between md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-outline-variant/30">
                 <div className="flex items-center gap-1">
-                  <span className="px-2 py-1 rounded bg-surface-container text-on-surface-variant font-code-sm text-xs">
+                  <span className="px-2 py-1 rounded bg-surface-container text-on-surface-variant font-code-sm text-[11px] sm:text-xs">
                     LinkedIn
                   </span>
-                  <span className="px-2 py-1 rounded bg-surface-container text-on-surface-variant font-code-sm text-xs">
+                  <span className="px-2 py-1 rounded bg-surface-container text-on-surface-variant font-code-sm text-[11px] sm:text-xs">
                     Carousel
                   </span>
                 </div>
-                <button className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-container text-on-primary rounded-lg font-label-md text-label-md transition-transform active:scale-[0.98] shadow-xs">
-                  <span className="material-symbols-outlined text-sm" data-icon="bolt">
-                    bolt
-                  </span>
+                <button className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-primary hover:bg-primary-container text-on-primary rounded-lg font-label-md text-label-md transition-transform active:scale-[0.98] shadow-xs cursor-pointer text-xs sm:text-sm">
+                  <Zap className="w-4 h-4" />
                   <span>Generate Cepat</span>
                 </button>
               </div>
@@ -81,7 +93,7 @@ export default function DashboardPage() {
       </section>
 
       {/* SECTION 2: KPI STATS CARDS (4 Grid Layout) */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-lg">
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-space-lg">
         {/* Metric Card 1 */}
         <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-outline transition-all">
           <div className="flex items-start justify-between">
@@ -92,16 +104,12 @@ export default function DashboardPage() {
               </h3>
             </div>
             <div className="w-9 h-9 rounded-lg bg-surface-container text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg" data-icon="auto_mode">
-                auto_mode
-              </span>
+              <Bot className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
             <span className="inline-flex items-center font-label-sm text-label-sm text-tertiary font-bold">
-              <span className="material-symbols-outlined text-sm mr-0.5" data-icon="trending_up">
-                trending_up
-              </span>
+              <TrendingUp className="w-4 h-4 mr-1" />
               +18.4%
             </span>
             <span className="text-outline font-body-sm text-body-sm">dibanding bulan lalu</span>
@@ -118,16 +126,12 @@ export default function DashboardPage() {
               </h3>
             </div>
             <div className="w-9 h-9 rounded-lg bg-secondary-container text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg" data-icon="precision_manufacturing">
-                precision_manufacturing
-              </span>
+              <Cpu className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
             <span className="inline-flex items-center font-label-sm text-label-sm text-tertiary font-bold">
-              <span className="material-symbols-outlined text-sm mr-0.5" data-icon="check_circle">
-                check_circle
-              </span>
+              <CheckCircle2 className="w-4 h-4 mr-1" />
               99.2% Sukses
             </span>
             <span className="text-outline font-body-sm text-body-sm">eksekusi tanpa galat</span>
@@ -144,9 +148,7 @@ export default function DashboardPage() {
               </h3>
             </div>
             <div className="w-9 h-9 rounded-lg bg-surface-container text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg" data-icon="queue">
-                queue
-              </span>
+              <Layers className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
@@ -167,16 +169,12 @@ export default function DashboardPage() {
               </h3>
             </div>
             <div className="w-9 h-9 rounded-lg bg-surface-variant text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg" data-icon="query_stats">
-                query_stats
-              </span>
+              <BarChart2 className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
             <span className="inline-flex items-center font-label-sm text-label-sm text-tertiary font-bold">
-              <span className="material-symbols-outlined text-sm mr-0.5" data-icon="north_east">
-                north_east
-              </span>
+              <ArrowUpRight className="w-4 h-4 mr-0.5" />
               +2.1%
             </span>
             <span className="text-outline font-body-sm text-body-sm">vs konten non-AI</span>
@@ -189,7 +187,7 @@ export default function DashboardPage() {
         {/* Left: Jadwal & Saluran Aktif (Content Pipeline) - Col 8 */}
         <div className="lg:col-span-8 flex flex-col gap-space-base">
           {/* Section Header Card */}
-          <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm">
+          <div className="bg-surface-container-lowest p-4 sm:p-space-lg rounded-xl border border-outline-variant/30 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-space-md border-b border-outline-variant/20">
               <div>
                 <h2 className="font-headline-sm text-headline-sm text-on-surface">
@@ -200,57 +198,57 @@ export default function DashboardPage() {
                 </p>
               </div>
               {/* Filter Tags */}
-              <div className="flex items-center gap-1.5 overflow-x-auto shrink-0">
-                <button className="px-2.5 py-1 rounded bg-secondary-container text-primary font-label-sm text-label-sm whitespace-nowrap">
+              <div className="flex items-center gap-1.5 overflow-x-auto shrink-0 pb-1 sm:pb-0">
+                <button className="px-2.5 py-1 rounded bg-secondary-container text-primary font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
                   Semua (38)
                 </button>
-                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap">
+                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
                   Review (4)
                 </button>
-                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm">
+                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
                   Terjadwal (18)
                 </button>
-                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm">
+                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
                   Tayang (16)
                 </button>
               </div>
             </div>
 
             {/* Mini Calendar Horizon Strip */}
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 pt-space-md pb-space-sm min-w-0">
-              <div className="text-center p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-label-sm text-outline">SEN</span>
-                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">24</span>
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 pt-space-md pb-space-sm min-w-0 overflow-x-auto">
+              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
+                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">SEN</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">24</span>
                 <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-tertiary"></span>
               </div>
-              <div className="text-center p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-label-sm text-outline">SEL</span>
-                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">25</span>
+              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
+                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">SEL</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">25</span>
                 <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-tertiary"></span>
               </div>
-              <div className="text-center p-2 rounded-lg bg-primary text-on-primary shadow-xs">
-                <span className="block font-label-sm text-label-sm opacity-80">RAB</span>
-                <span className="font-headline-sm text-headline-sm font-bold">26</span>
+              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-primary text-on-primary shadow-xs">
+                <span className="block font-label-sm text-[10px] sm:text-label-sm opacity-80">RAB</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold">26</span>
                 <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-white"></span>
               </div>
-              <div className="text-center p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-label-sm text-outline">KAM</span>
-                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">27</span>
+              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
+                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">KAM</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">27</span>
                 <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-primary-container"></span>
               </div>
-              <div className="text-center p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-label-sm text-outline">JUM</span>
-                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">28</span>
+              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
+                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">JUM</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">28</span>
                 <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-primary-container"></span>
               </div>
-              <div className="text-center p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-label-sm text-outline">SAB</span>
-                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">29</span>
+              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
+                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">SAB</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">29</span>
                 <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-outline-variant"></span>
               </div>
-              <div className="text-center p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-label-sm text-outline">MIN</span>
-                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">30</span>
+              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
+                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">MIN</span>
+                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">30</span>
                 <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-outline-variant"></span>
               </div>
             </div>
@@ -259,7 +257,7 @@ export default function DashboardPage() {
             <div className="space-y-space-md mt-space-md">
               {/* Card 1: Instagram Carousel - Draft Dihasilkan AI */}
               <div className="p-space-md rounded-lg border border-outline-variant/40 bg-surface/50 hover:bg-surface-container-lowest hover:border-primary/50 transition-all flex flex-col sm:flex-row gap-space-md">
-                <div className="w-full sm:w-28 h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
+                <div className="w-full sm:w-28 h-28 sm:h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
                   <img
                     className="w-full h-full object-cover"
                     alt="Social media carousel slide mockup"
@@ -288,24 +286,20 @@ export default function DashboardPage() {
                         Slide 1: Pengantar Autonomous Funnel. Slide 2: Dynamic Segmentation. Slide 3: Automated Ad Copy...
                       </p>
                     </div>
-                    <button className="p-1 text-outline hover:text-on-surface">
-                      <span className="material-symbols-outlined text-base" data-icon="more_vert">
-                        more_vert
-                      </span>
+                    <button className="p-1 text-outline hover:text-on-surface cursor-pointer">
+                      <MoreVertical className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/20 text-xs">
                     <div className="flex items-center gap-2 text-outline font-label-sm">
-                      <span className="material-symbols-outlined text-sm text-primary" data-icon="smart_toy">
-                        smart_toy
-                      </span>
+                      <Bot className="w-4 h-4 text-primary" />
                       <span>
                         Oleh: <strong className="text-on-surface">Agent Copywriter v2.4</strong>
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-code-sm text-code-sm text-outline">Jadwal: Besok, 10:00 WIB</span>
-                      <button className="px-2.5 py-1 bg-primary text-white rounded font-label-sm text-xs hover:bg-primary-container">
+                      <button className="px-2.5 py-1 bg-primary text-white rounded font-label-sm text-xs hover:bg-primary-container cursor-pointer">
                         Review
                       </button>
                     </div>
@@ -315,7 +309,7 @@ export default function DashboardPage() {
 
               {/* Card 2: TikTok Video Script - Menunggu Review Brand Kit */}
               <div className="p-space-md rounded-lg border border-outline-variant/40 bg-surface/50 hover:bg-surface-container-lowest hover:border-primary/50 transition-all flex flex-col sm:flex-row gap-space-md">
-                <div className="w-full sm:w-28 h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
+                <div className="w-full sm:w-28 h-28 sm:h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
                   <img
                     className="w-full h-full object-cover"
                     alt="Video recording studio setup"
@@ -328,7 +322,7 @@ export default function DashboardPage() {
                 <div className="flex-1 flex flex-col justify-between">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-900 border border-slate-300 font-label-sm text-[11px] font-semibold flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
                           TikTok Video Script
@@ -344,24 +338,20 @@ export default function DashboardPage() {
                         Audio: Trending Sound #B2BGrowth. Visual Cue: Tunjukkan dashboard auto-publish berkecepatan tinggi...
                       </p>
                     </div>
-                    <button className="p-1 text-outline hover:text-on-surface">
-                      <span className="material-symbols-outlined text-base" data-icon="more_vert">
-                        more_vert
-                      </span>
+                    <button className="p-1 text-outline hover:text-on-surface cursor-pointer">
+                      <MoreVertical className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/20 text-xs">
                     <div className="flex items-center gap-2 text-outline font-label-sm">
-                      <span className="material-symbols-outlined text-sm text-primary" data-icon="movie_filter">
-                        movie_filter
-                      </span>
+                      <Clapperboard className="w-4 h-4 text-primary" />
                       <span>
                         Oleh: <strong className="text-on-surface">Agent ScriptGen v1.8</strong>
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-code-sm text-code-sm text-outline">Jadwal: 27 Feb, 19:30 WIB</span>
-                      <button className="px-2.5 py-1 bg-surface-container hover:bg-surface-variant text-on-surface rounded font-label-sm text-xs">
+                      <button className="px-2.5 py-1 bg-surface-container hover:bg-surface-variant text-on-surface rounded font-label-sm text-xs cursor-pointer">
                         Approve Tone
                       </button>
                     </div>
@@ -371,7 +361,7 @@ export default function DashboardPage() {
 
               {/* Card 3: LinkedIn Thought Leadership - Terjadwal Otomatis */}
               <div className="p-space-md rounded-lg border border-outline-variant/40 bg-surface/50 hover:bg-surface-container-lowest hover:border-primary/50 transition-all flex flex-col sm:flex-row gap-space-md">
-                <div className="w-full sm:w-28 h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
+                <div className="w-full sm:w-28 h-28 sm:h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
                   <img
                     className="w-full h-full object-cover"
                     alt="Corporate editorial metrics chart"
@@ -400,17 +390,13 @@ export default function DashboardPage() {
                         Analisis data 500 startup Seri A: bagaimana efisiensi tim meningkat 4x lipat tanpa menambah headcount...
                       </p>
                     </div>
-                    <button className="p-1 text-outline hover:text-on-surface">
-                      <span className="material-symbols-outlined text-base" data-icon="more_vert">
-                        more_vert
-                      </span>
+                    <button className="p-1 text-outline hover:text-on-surface cursor-pointer">
+                      <MoreVertical className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/20 text-xs">
                     <div className="flex items-center gap-2 text-outline font-label-sm">
-                      <span className="material-symbols-outlined text-sm text-primary" data-icon="bolt">
-                        bolt
-                      </span>
+                      <Zap className="w-4 h-4 text-primary" />
                       <span>
                         Oleh: <strong className="text-on-surface">Agent ExecutiveGhost v3.1</strong>
                       </span>
@@ -429,7 +415,7 @@ export default function DashboardPage() {
 
         {/* Right: Aktivitas AI Agent Real-Time - Col 4 */}
         <div className="lg:col-span-4 flex flex-col gap-space-base">
-          <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col h-full">
+          <div className="bg-surface-container-lowest p-4 sm:p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col h-full">
             {/* Feed Header with Live Radar Indicator */}
             <div className="flex items-center justify-between pb-space-md border-b border-outline-variant/20">
               <div className="flex items-center gap-2">
@@ -527,7 +513,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Agent Performance Health Bar */}
-            <div className="mt-space-lg pt-space-md border-t border-outline-variant/20 bg-surface -mx-space-lg -mb-space-lg p-space-md rounded-b-xl">
+            <div className="mt-space-lg pt-space-md border-t border-outline-variant/20 bg-surface -mx-4 -mb-4 sm:-mx-space-lg sm:-mb-space-lg p-space-md rounded-b-xl">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-label-sm text-label-sm text-on-surface font-semibold">
                   Autonomous Cluster Load
@@ -551,11 +537,9 @@ export default function DashboardPage() {
               Jalankan resep pipeline instan untuk melipatgandakan output konten Anda
             </p>
           </div>
-          <button className="text-primary hover:underline font-label-md text-label-md flex items-center gap-1">
+          <button className="text-primary hover:underline font-label-md text-label-md flex items-center gap-1 cursor-pointer">
             <span>Lihat Semua Workflow</span>
-            <span className="material-symbols-outlined text-sm" data-icon="arrow_forward">
-              arrow_forward
-            </span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 
@@ -565,9 +549,7 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-lg bg-secondary-container text-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-xl" data-icon="sync_alt">
-                    sync_alt
-                  </span>
+                  <ArrowLeftRight className="w-5 h-5" />
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-surface-container text-primary font-code-sm text-[11px] font-semibold">
                   RSS Trigger
@@ -582,13 +564,9 @@ export default function DashboardPage() {
               {/* Trigger Visual Micro Chain */}
               <div className="mt-4 p-2.5 rounded-lg bg-surface border border-outline-variant/20 flex flex-wrap items-center justify-between gap-1 text-[11px] font-code-sm text-outline">
                 <span>RSS Feed</span>
-                <span className="material-symbols-outlined text-xs" data-icon="chevron_right">
-                  chevron_right
-                </span>
+                <ChevronRight className="w-3.5 h-3.5" />
                 <span>AI Repurposing</span>
-                <span className="material-symbols-outlined text-xs" data-icon="chevron_right">
-                  chevron_right
-                </span>
+                <ChevronRight className="w-3.5 h-3.5" />
                 <span>Auto-Calendar</span>
               </div>
             </div>
@@ -605,9 +583,7 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-lg bg-tertiary-fixed-dim/20 text-tertiary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-xl" data-icon="travel_explore">
-                    travel_explore
-                  </span>
+                  <Globe className="w-5 h-5" />
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-code-sm text-[11px] font-semibold">
                   Daily Cron
@@ -622,13 +598,9 @@ export default function DashboardPage() {
               {/* Trigger Visual Micro Chain */}
               <div className="mt-4 p-2.5 rounded-lg bg-surface border border-outline-variant/20 flex items-center justify-between text-[11px] font-code-sm text-outline">
                 <span>Google Trends</span>
-                <span className="material-symbols-outlined text-xs" data-icon="chevron_right">
-                  chevron_right
-                </span>
+                <ChevronRight className="w-3.5 h-3.5" />
                 <span>Draft Summary</span>
-                <span className="material-symbols-outlined text-xs" data-icon="chevron_right">
-                  chevron_right
-                </span>
+                <ChevronRight className="w-3.5 h-3.5" />
                 <span>Telegram Bot</span>
               </div>
             </div>
@@ -645,9 +617,7 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-lg bg-surface-variant text-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-xl" data-icon="smart_display">
-                    smart_display
-                  </span>
+                  <Video className="w-5 h-5" />
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-surface-container text-primary font-code-sm text-[11px] font-semibold">
                   Scheduled
@@ -662,13 +632,9 @@ export default function DashboardPage() {
               {/* Trigger Visual Micro Chain */}
               <div className="mt-4 p-2.5 rounded-lg bg-surface border border-outline-variant/20 flex items-center justify-between text-[11px] font-code-sm text-outline">
                 <span>Senin 09:00</span>
-                <span className="material-symbols-outlined text-xs" data-icon="chevron_right">
-                  chevron_right
-                </span>
+                <ChevronRight className="w-3.5 h-3.5" />
                 <span>5 Hooks Gen</span>
-                <span className="material-symbols-outlined text-xs" data-icon="chevron_right">
-                  chevron_right
-                </span>
+                <ChevronRight className="w-3.5 h-3.5" />
                 <span>Notion Ready</span>
               </div>
             </div>

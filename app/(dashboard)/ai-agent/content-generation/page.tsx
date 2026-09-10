@@ -4,6 +4,39 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Sparkles,
+  Loader2,
+  CheckCircle2,
+  Check,
+  ImageIcon,
+  Layers,
+  Video,
+  Brain,
+  X,
+  PartyPopper,
+  Table as TableIcon,
+  LayoutGrid,
+  Calendar,
+  SlidersHorizontal,
+  Clock,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  ShieldCheck,
+  GraduationCap,
+  Megaphone,
+  MessageSquare,
+  BadgeCheck,
+  Lightbulb,
+  BookOpen,
+  Star,
+  Building2,
+  Package,
+  Mic,
+  AlertCircle,
+} from "lucide-react";
+import {
   getContentPreferences,
   calculateRecommendedStrategy,
   saveContentPreferences,
@@ -29,43 +62,43 @@ const ALL_CONTENT_TYPES = [
   {
     id: "Educational",
     label: "Educational",
-    icon: "school",
+    icon: GraduationCap,
     desc: "Tips, edukasi industri, panduan cara kerja produk",
   },
   {
     id: "Promotional",
     label: "Promotional",
-    icon: "campaign",
+    icon: Megaphone,
     desc: "Promo diskon, penawaran spesial, katalog menu/produk",
   },
   {
     id: "Engagement",
     label: "Engagement",
-    icon: "forum",
+    icon: MessageSquare,
     desc: "Pertanyaan interaktif, polling, kuis, diskusi followers",
   },
   {
     id: "Branding",
     label: "Branding",
-    icon: "verified",
+    icon: BadgeCheck,
     desc: "Visi misi bisnis, profil tim, behind-the-scenes",
   },
   {
     id: "Tips",
     label: "Tips",
-    icon: "lightbulb",
+    icon: Lightbulb,
     desc: "Solusi cepat, lifehacks, rekomendasi praktis",
   },
   {
     id: "Storytelling",
     label: "Storytelling",
-    icon: "auto_stories",
+    icon: BookOpen,
     desc: "Kisah inspiratif pelanggan, cerita perjalanan bisnis",
   },
   {
     id: "Social Proof",
     label: "Social Proof",
-    icon: "reviews",
+    icon: Star,
     desc: "Testimoni pembeli, ulasan positif, bukti kepuasan",
   },
 ];
@@ -146,11 +179,11 @@ export default function ContentGenerationPage() {
   };
 
   const generationSteps = [
-    { label: "Analyzing business", icon: "domain" },
-    { label: "Analyzing products", icon: "inventory_2" },
-    { label: "Applying brand voice", icon: "record_voice_over" },
-    { label: "Creating content pillars", icon: "category" },
-    { label: "Building 30-day calendar", icon: "calendar_month" },
+    { label: "Analyzing business", icon: Building2 },
+    { label: "Analyzing products", icon: Package },
+    { label: "Applying brand voice", icon: Mic },
+    { label: "Creating content pillars", icon: LayoutGrid },
+    { label: "Building 30-day calendar", icon: Calendar },
   ];
 
   // Load Initial Preferences and Plan Status
@@ -366,9 +399,7 @@ export default function ContentGenerationPage() {
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto p-12 flex flex-col items-center justify-center min-h-[400px]">
-        <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-          progress_activity
-        </span>
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
         <p className="font-label-md text-sm text-outline mt-2">
           Memuat preferensi konten AI...
         </p>
@@ -389,9 +420,7 @@ export default function ContentGenerationPage() {
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-md text-xs font-semibold tracking-wide text-indigo-200">
-              <span className="material-symbols-outlined text-sm text-amber-300">
-                auto_awesome
-              </span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               <span>The 1-Click AI Breakthrough</span>
             </div>
 
@@ -405,21 +434,15 @@ export default function ContentGenerationPage() {
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-indigo-200/80 pt-1">
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-emerald-400 text-sm">
-                  check_circle
-                </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 Lazy Generation (Efisien Biaya AI)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-emerald-400 text-sm">
-                  check_circle
-                </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 Format Carousel, Feed, Reels & Story
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-emerald-400 text-sm">
-                  check_circle
-                </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 Siap Dipublikasikan ke Instagram
               </span>
             </div>
@@ -430,7 +453,7 @@ export default function ContentGenerationPage() {
             {/* Quick Image Quality Pill Selector in Hero */}
             <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2.5 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-white/20 text-xs shadow-sm">
               <div className="flex items-center gap-1.5 text-indigo-100">
-                <span className="material-symbols-outlined text-sm text-amber-300">image</span>
+                <ImageIcon className="w-3.5 h-3.5 text-amber-300" />
                 <span className="font-semibold text-[11px]">Quality Gambar:</span>
               </div>
               <div className="inline-flex rounded-xl bg-black/30 p-0.5 border border-white/10">
@@ -459,16 +482,12 @@ export default function ContentGenerationPage() {
             >
               {isGenerating ? (
                 <>
-                  <span className="material-symbols-outlined animate-spin text-xl">
-                    progress_activity
-                  </span>
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   <span>Meracik 30 Rencana Konten...</span>
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform text-amber-200">
-                    auto_awesome
-                  </span>
+                  <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform text-amber-200" />
                   <span>✨ Generate 30-Day Plan</span>
                 </>
               )}
@@ -497,9 +516,7 @@ export default function ContentGenerationPage() {
         {isGenerating && (
           <div className="mt-8 pt-6 border-t border-white/10 animate-in fade-in slide-in-from-top-4 duration-300">
             <p className="font-label-md text-sm font-semibold text-amber-300 mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined animate-pulse text-base">
-                psychology
-              </span>
+              <Brain className="w-4 h-4 animate-pulse" />
               <span>Creating your content strategy...</span>
             </p>
 
@@ -521,13 +538,9 @@ export default function ContentGenerationPage() {
                   >
                     <div className="shrink-0 flex items-center justify-center">
                       {isCompleted ? (
-                        <span className="material-symbols-outlined text-emerald-400 text-lg font-bold">
-                          check
-                        </span>
+                        <Check className="w-4 h-4 text-emerald-400 font-bold" />
                       ) : isCurrent ? (
-                        <span className="material-symbols-outlined text-amber-300 text-lg animate-spin">
-                          hourglass_top
-                        </span>
+                        <Loader2 className="w-4 h-4 text-amber-300 animate-spin" />
                       ) : (
                         <span className="text-sm font-bold text-indigo-400">
                           {idx + 1}
@@ -557,13 +570,11 @@ export default function ContentGenerationPage() {
           }`}
         >
           <div className="flex items-center gap-2.5">
-            <span
-              className={`material-symbols-outlined text-xl ${
-                feedback.type === "success" ? "text-emerald-600" : "text-red-600"
-              }`}
-            >
-              {feedback.type === "success" ? "check_circle" : "error"}
-            </span>
+            {feedback.type === "success" ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            )}
             <span className="text-sm font-medium">{feedback.message}</span>
           </div>
 
@@ -574,14 +585,14 @@ export default function ContentGenerationPage() {
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-1"
               >
                 <span>Lihat di Kalender</span>
-                <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             )}
             <button
               onClick={() => setFeedback({ type: null, message: "" })}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-base">close</span>
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -595,7 +606,7 @@ export default function ContentGenerationPage() {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-outline-variant/20 pb-5">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs ring-4 ring-emerald-50">
-                <span className="material-symbols-outlined text-3xl">celebration</span>
+                <PartyPopper className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-0.5">
@@ -629,7 +640,7 @@ export default function ContentGenerationPage() {
                       : "text-outline hover:text-on-surface"
                   }`}
                 >
-                  <span className="material-symbols-outlined text-sm">table_rows</span>
+                  <TableIcon className="w-3.5 h-3.5" />
                   <span>Tabel</span>
                 </button>
                 <button
@@ -641,7 +652,7 @@ export default function ContentGenerationPage() {
                       : "text-outline hover:text-on-surface"
                   }`}
                 >
-                  <span className="material-symbols-outlined text-sm">grid_view</span>
+                  <LayoutGrid className="w-3.5 h-3.5" />
                   <span>Cards</span>
                 </button>
               </div>
@@ -651,7 +662,7 @@ export default function ContentGenerationPage() {
                 href="/content-calendar"
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 active:scale-95"
               >
-                <span className="material-symbols-outlined text-base">calendar_month</span>
+                <Calendar className="w-4 h-4" />
                 <span>Masuk ke Content Calendar →</span>
               </Link>
             </div>
@@ -750,9 +761,11 @@ export default function ContentGenerationPage() {
                         ? "Tampilkan Lebih Sedikit"
                         : `Lihat Semua ${generatedPlans.length} Baris Konten`}
                     </span>
-                    <span className="material-symbols-outlined text-sm">
-                      {showPlansPreview ? "expand_less" : "expand_more"}
-                    </span>
+                    {showPlansPreview ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
                   </button>
 
                   <Link
@@ -799,13 +812,13 @@ export default function ContentGenerationPage() {
 
                     <div className="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[11px]">
                       <span className="inline-flex items-center gap-1 font-semibold text-primary">
-                        <span className="material-symbols-outlined text-xs">
-                          {plan.format === "Carousel"
-                            ? "view_carousel"
-                            : plan.format === "Reels"
-                            ? "movie"
-                            : "image"}
-                        </span>
+                        {plan.format === "Carousel" ? (
+                          <Layers className="w-3.5 h-3.5" />
+                        ) : plan.format === "Reels" ? (
+                          <Video className="w-3.5 h-3.5" />
+                        ) : (
+                          <ImageIcon className="w-3.5 h-3.5" />
+                        )}
                         <span>{plan.format}</span>
                       </span>
                       <span className="px-2 py-0.5 rounded-md bg-secondary-container text-primary font-bold text-[10px]">
@@ -821,9 +834,7 @@ export default function ContentGenerationPage() {
           {/* Bottom Action Footer */}
           <div className="pt-3 border-t border-outline-variant/20 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-xs text-outline">
-              <span className="material-symbols-outlined text-base text-emerald-600">
-                check_circle
-              </span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>
                 Status <strong>PLANNED</strong>: Lazy Generation H-2 sebelum posting.
               </span>
@@ -833,7 +844,7 @@ export default function ContentGenerationPage() {
               href="/content-calendar"
               className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-label-md text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 text-center"
             >
-              <span className="material-symbols-outlined text-base">calendar_month</span>
+              <Calendar className="w-4 h-4" />
               <span>Buka Content Calendar Lengkap</span>
             </Link>
           </div>
@@ -848,9 +859,7 @@ export default function ContentGenerationPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3.5">
               <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 ring-1 ring-primary/20">
-                <span className="material-symbols-outlined text-2xl" data-icon="tune">
-                  tune
-                </span>
+                <SlidersHorizontal className="w-5 h-5" />
               </div>
               <div>
                 <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">
@@ -969,9 +978,7 @@ export default function ContentGenerationPage() {
                         }`}
                       >
                         {isChecked && (
-                          <span className="material-symbols-outlined text-xs">
-                            check
-                          </span>
+                          <Check className="w-3 h-3" />
                         )}
                       </div>
                       <div className="truncate">
@@ -992,9 +999,7 @@ export default function ContentGenerationPage() {
             <div className="space-y-3">
               <div>
                 <label className="font-label-md text-label-md font-bold text-on-surface flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-base text-primary">
-                    schedule
-                  </span>
+                  <Clock className="w-4 h-4 text-primary" />
                   <span>Posting Time</span>
                 </label>
                 <p className="text-xs text-outline mt-0.5">
@@ -1037,6 +1042,7 @@ export default function ContentGenerationPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {ALL_CONTENT_TYPES.map((type) => {
                 const isChecked = contentTypes.includes(type.id);
+                const TypeIcon = type.icon;
                 return (
                   <button
                     key={type.id}
@@ -1056,21 +1062,17 @@ export default function ContentGenerationPage() {
                       }`}
                     >
                       {isChecked && (
-                        <span className="material-symbols-outlined text-sm">
-                          check
-                        </span>
+                        <Check className="w-3.5 h-3.5" />
                       )}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span
-                          className={`material-symbols-outlined text-base ${
+                        <TypeIcon
+                          className={`w-4 h-4 ${
                             isChecked ? "text-primary" : "text-outline"
                           }`}
-                        >
-                          {type.icon}
-                        </span>
+                        />
                         <span
                           className={`text-sm font-bold ${
                             isChecked ? "text-on-surface" : "text-on-surface-variant"
@@ -1094,7 +1096,7 @@ export default function ContentGenerationPage() {
             <div className="flex items-center justify-between">
               <div>
                 <label className="font-label-md text-label-md font-bold text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined text-base text-primary">image</span>
+                  <ImageIcon className="w-4 h-4 text-primary" />
                   <span>AI Image Quality</span>
                   <span className="text-xs font-normal text-outline">
                     (Kualitas Visual Gambar)
@@ -1116,31 +1118,32 @@ export default function ContentGenerationPage() {
                   label: "Low",
                   badge: "Cepat",
                   desc: "Render paling cepat, hemat waktu pemrosesan",
-                  icon: "bolt",
+                  icon: Zap,
                 },
                 {
                   id: "medium",
                   label: "Medium",
                   badge: "Rekomendasi",
                   desc: "Keseimbangan ideal antara detail visual tajam & kecepatan",
-                  icon: "auto_awesome",
+                  icon: Sparkles,
                 },
                 {
                   id: "high",
                   label: "High",
                   badge: "HD Maksimal",
                   desc: "Kualitas visual maksimal dengan resolusi dan detail ekstra",
-                  icon: "high_quality",
+                  icon: ShieldCheck,
                 },
                 {
                   id: "auto",
                   label: "Auto",
                   badge: "AI Managed",
                   desc: "Kualitas ditentukan otomatis sesuai kompleksitas prompt visual",
-                  icon: "tune",
+                  icon: SlidersHorizontal,
                 },
               ].map((opt) => {
                 const isSelected = imageQuality === opt.id;
+                const QualityIcon = opt.icon;
                 return (
                   <button
                     key={opt.id}
@@ -1162,9 +1165,7 @@ export default function ContentGenerationPage() {
                                 : "bg-surface-container text-outline"
                             }`}
                           >
-                            <span className="material-symbols-outlined text-base">
-                              {opt.icon}
-                            </span>
+                            <QualityIcon className="w-4 h-4" />
                           </div>
                           <span className="font-bold text-sm text-on-surface">
                             {opt.label}
@@ -1215,9 +1216,7 @@ export default function ContentGenerationPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary-container text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                <span className="material-symbols-outlined text-2xl" data-icon="auto_awesome">
-                  auto_awesome
-                </span>
+                <Sparkles className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -1252,7 +1251,7 @@ export default function ContentGenerationPage() {
                   onClick={() => setIsEditingStrategy(true)}
                   className="px-3 py-1.5 rounded-lg border border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold transition-colors flex items-center gap-1"
                 >
-                  <span className="material-symbols-outlined text-sm">tune</span>
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
                   <span>Sesuaikan Proporsi</span>
                 </button>
               )}
@@ -1349,7 +1348,7 @@ export default function ContentGenerationPage() {
                 disabled={isGenerating}
                 className="w-full sm:w-auto px-6 py-3 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
               >
-                <span className="material-symbols-outlined text-base">auto_awesome</span>
+                <Sparkles className="w-4 h-4" />
                 <span>[ Use This Strategy & Generate 30-Day Plan ]</span>
               </button>
             </div>

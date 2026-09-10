@@ -2,6 +2,24 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import {
+  BadgeCheck,
+  Rocket,
+  Clock,
+  FolderOpen,
+  Calendar,
+  RefreshCw,
+  BookOpen,
+  ClipboardCheck,
+  Search,
+  Loader2,
+  FolderX,
+  ImageIcon,
+  Check,
+  Copy,
+  X,
+  RotateCw,
+} from "lucide-react";
 import { getContentLibraryData, ContentLibraryItem } from "./actions";
 import { republishPostToZernioAction } from "../content-calendar/lazy-actions";
 
@@ -106,21 +124,21 @@ export default function ContentLibraryPage() {
       case "PUBLISHED":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white shadow-xs">
-            <span className="material-symbols-outlined text-[12px]">verified</span>
+            <BadgeCheck className="w-3 h-3" />
             <span>PUBLISHED</span>
           </span>
         );
       case "PUBLISHING":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-600 text-white animate-pulse shadow-xs">
-            <span className="material-symbols-outlined text-[12px]">rocket_launch</span>
+            <Rocket className="w-3 h-3" />
             <span>PUBLISHING</span>
           </span>
         );
       case "SCHEDULED":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-600 text-white shadow-xs">
-            <span className="material-symbols-outlined text-[12px]">schedule</span>
+            <Clock className="w-3 h-3" />
             <span>SCHEDULED</span>
           </span>
         );
@@ -164,7 +182,7 @@ export default function ContentLibraryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-headline-md text-2xl font-bold text-on-surface tracking-tight flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-2xl">folder_open</span>
+            <FolderOpen className="w-6 h-6 text-primary" />
             <span>Content Library</span>
           </h1>
           <p className="font-body-md text-sm text-outline mt-0.5">
@@ -172,12 +190,12 @@ export default function ContentLibraryPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <Link
             href="/content-calendar"
-            className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface text-on-surface font-semibold text-xs transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface text-on-surface font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
+            <Calendar className="w-4 h-4 text-primary" />
             <span>Buka Kalender</span>
           </Link>
           <button
@@ -186,49 +204,47 @@ export default function ContentLibraryPage() {
             className="p-2 rounded-xl border border-outline-variant/30 hover:bg-surface text-outline hover:text-on-surface transition-colors cursor-pointer"
             title="Muat ulang data"
           >
-            <span className={`material-symbols-outlined text-base ${loading ? "animate-spin" : ""}`}>
-              refresh
-            </span>
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-primary" : ""}`} />
           </button>
         </div>
       </div>
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 shadow-2xs">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 shadow-2xs">
           <div className="flex items-center justify-between text-outline text-xs font-semibold">
             <span>Total Konten</span>
-            <span className="material-symbols-outlined text-lg">auto_stories</span>
+            <BookOpen className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-bold font-headline text-on-surface mt-1">{stats.total}</p>
-          <span className="text-[11px] text-outline">Seluruh rencana & aset</span>
+          <p className="text-xl sm:text-2xl font-bold font-headline text-on-surface mt-1">{stats.total}</p>
+          <span className="text-[10px] sm:text-[11px] text-outline">Seluruh rencana & aset</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 shadow-2xs">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 shadow-2xs">
           <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold">
             <span>✓ Telah Terbit</span>
-            <span className="material-symbols-outlined text-lg text-emerald-600">verified</span>
+            <BadgeCheck className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-bold font-headline text-emerald-950 mt-1">{stats.published}</p>
-          <span className="text-[11px] text-emerald-800/90">Published di Instagram</span>
+          <p className="text-xl sm:text-2xl font-bold font-headline text-emerald-950 mt-1">{stats.published}</p>
+          <span className="text-[10px] sm:text-[11px] text-emerald-800/90">Published di Instagram</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 shadow-2xs">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 shadow-2xs">
           <div className="flex items-center justify-between text-blue-800 text-xs font-semibold">
-            <span>🕒 Terjadwal (Zernio)</span>
-            <span className="material-symbols-outlined text-lg text-blue-600">schedule</span>
+            <span>🕒 Terjadwal</span>
+            <Clock className="w-4 h-4 text-blue-600" />
           </div>
-          <p className="text-2xl font-bold font-headline text-blue-950 mt-1">{stats.scheduled}</p>
-          <span className="text-[11px] text-blue-800/90">Scheduled via Zernio</span>
+          <p className="text-xl sm:text-2xl font-bold font-headline text-blue-950 mt-1">{stats.scheduled}</p>
+          <span className="text-[10px] sm:text-[11px] text-blue-800/90">Scheduled via Zernio</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-2xs">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-2xs">
           <div className="flex items-center justify-between text-amber-800 text-xs font-semibold">
             <span>Siap Persetujuan</span>
-            <span className="material-symbols-outlined text-lg text-amber-600">rate_review</span>
+            <ClipboardCheck className="w-4 h-4 text-amber-600" />
           </div>
-          <p className="text-2xl font-bold font-headline text-amber-950 mt-1">{stats.readyForApproval}</p>
-          <span className="text-[11px] text-amber-800/90">Menunggu Review User</span>
+          <p className="text-xl sm:text-2xl font-bold font-headline text-amber-950 mt-1">{stats.readyForApproval}</p>
+          <span className="text-[10px] sm:text-[11px] text-amber-800/90">Menunggu Review User</span>
         </div>
       </div>
 
@@ -268,9 +284,7 @@ export default function ContentLibraryPage() {
         {/* Search & Format Selector */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 md:w-56">
-            <span className="material-symbols-outlined text-outline text-base absolute left-2.5 top-1/2 -translate-y-1/2">
-              search
-            </span>
+            <Search className="w-4 h-4 text-outline absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Cari topik atau judul..."
@@ -296,15 +310,13 @@ export default function ContentLibraryPage() {
       {/* Content Grid */}
       {loading ? (
         <div className="p-16 flex flex-col items-center justify-center text-outline gap-2 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
-          <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-            progress_activity
-          </span>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <span className="text-xs font-semibold">Memuat aset Content Library...</span>
         </div>
       ) : filteredPosts.length === 0 ? (
         <div className="p-16 flex flex-col items-center justify-center text-center bg-surface-container-lowest rounded-3xl border border-dashed border-outline-variant/40 space-y-2">
           <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline">
-            <span className="material-symbols-outlined text-2xl">folder_off</span>
+            <FolderX className="w-6 h-6" />
           </div>
           <h3 className="font-bold text-on-surface text-sm">Tidak ada konten ditemukan</h3>
           <p className="text-xs text-outline max-w-sm">
@@ -331,7 +343,7 @@ export default function ContentLibraryPage() {
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-slate-500 gap-1 p-4 text-center">
-                    <span className="material-symbols-outlined text-3xl">image</span>
+                    <ImageIcon className="w-7 h-7" />
                     <span className="text-[10px] font-mono">Visual Generated via Lazy Gen</span>
                   </div>
                 )}
@@ -381,12 +393,14 @@ export default function ContentLibraryPage() {
                         e.stopPropagation();
                         handleCopyCaption(post);
                       }}
-                      className="px-2.5 py-1 rounded-lg border border-outline-variant/30 hover:bg-surface text-[11px] font-semibold text-on-surface transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-lg border border-outline-variant/30 hover:bg-surface text-[11px] font-semibold text-on-surface transition-colors flex items-center gap-1 cursor-pointer"
                       title="Salin caption ke clipboard"
                     >
-                      <span className="material-symbols-outlined text-[13px]">
-                        {copiedId === post.id ? "check" : "content_copy"}
-                      </span>
+                      {copiedId === post.id ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
                       <span>{copiedId === post.id ? "Tersalin!" : "Copy"}</span>
                     </button>
 
@@ -396,7 +410,7 @@ export default function ContentLibraryPage() {
                         e.stopPropagation();
                         setActivePost(post);
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-[11px] font-bold text-primary transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-[11px] font-bold text-primary transition-colors cursor-pointer"
                     >
                       Detail →
                     </button>
@@ -410,12 +424,12 @@ export default function ContentLibraryPage() {
 
       {/* Detail Modal */}
       {activePost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-surface-container-lowest max-w-2xl w-full rounded-3xl border border-outline-variant/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
-            <div className="p-5 border-b border-outline-variant/20 flex items-start justify-between gap-4">
+            <div className="p-4 sm:p-5 border-b border-outline-variant/20 flex items-start justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-1.5">
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
                   {getStatusBadge(activePost.status)}
                   <span className="px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 font-bold text-[10px] border border-pink-200">
                     Instagram · {activePost.format}
@@ -424,7 +438,7 @@ export default function ContentLibraryPage() {
                     {activePost.scheduled_date} {activePost.scheduled_time} WIB
                   </span>
                 </div>
-                <h3 className="font-headline-sm text-lg font-bold text-on-surface">
+                <h3 className="font-headline-sm text-base sm:text-lg font-bold text-on-surface">
                   {activePost.title}
                 </h3>
               </div>
@@ -434,16 +448,16 @@ export default function ContentLibraryPage() {
                 onClick={() => setActivePost(null)}
                 className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container cursor-pointer shrink-0"
               >
-                <span className="material-symbols-outlined text-base">close</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
               {/* Publishing & Zernio Status Alert */}
               {activePost.status === "PUBLISHED" ? (
                 <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center gap-2.5">
-                  <span className="material-symbols-outlined text-emerald-600 text-xl">verified</span>
+                  <BadgeCheck className="w-5 h-5 text-emerald-600 shrink-0" />
                   <div>
                     <p className="font-bold text-emerald-900">Konten Telah Terbit di Instagram!</p>
                     <p className="text-[11px] text-emerald-800/90 mt-0.5">
@@ -454,7 +468,7 @@ export default function ContentLibraryPage() {
                 </div>
               ) : activePost.status === "SCHEDULED" ? (
                 <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 flex items-center gap-2.5">
-                  <span className="material-symbols-outlined text-blue-600 text-xl">schedule</span>
+                  <Clock className="w-5 h-5 text-blue-600 shrink-0" />
                   <div>
                     <p className="font-bold text-blue-900">Terjadwal di Zernio</p>
                     <p className="text-[11px] text-blue-800/90 mt-0.5">
@@ -489,9 +503,11 @@ export default function ContentLibraryPage() {
                       onClick={() => handleCopyCaption(activePost)}
                       className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-xs">
-                        {copiedId === activePost.id ? "check" : "content_copy"}
-                      </span>
+                      {copiedId === activePost.id ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
                       <span>{copiedId === activePost.id ? "Tersalin!" : "Salin Caption"}</span>
                     </button>
                   </div>
@@ -517,7 +533,7 @@ export default function ContentLibraryPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-outline-variant/20 bg-surface flex flex-wrap items-center justify-between gap-3">
+            <div className="p-4 border-t border-outline-variant/20 bg-surface flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div>
                 <span className="text-[11px] text-outline block">
                   Pilar: <strong>{activePost.pillar}</strong> ({activePost.content_type})
@@ -528,7 +544,7 @@ export default function ContentLibraryPage() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 justify-end">
                 {(activePost.status === "SCHEDULED" || activePost.status === "PUBLISHED" || Boolean(activePost.zernio_post_id)) && (
                   <button
                     type="button"
@@ -537,18 +553,16 @@ export default function ContentLibraryPage() {
                     className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface-container text-on-surface font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     title="Hapus jadwal/post lama di Zernio dan kirim ulang dengan data terbaru"
                   >
-                    <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
-                      {isRepublishing ? "progress_activity" : "sync"}
-                    </span>
-                    <span>{isRepublishing ? "Menjadwalkan Ulang..." : "🔄 Publish Ulang"}</span>
+                    <RotateCw className={`w-3.5 h-3.5 ${isRepublishing ? "animate-spin" : ""}`} />
+                    <span>{isRepublishing ? "Menjadwalkan Ulang..." : "Publish Ulang"}</span>
                   </button>
                 )}
 
                 <Link
                   href="/content-calendar"
-                  className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface-container text-primary font-semibold text-xs transition-colors flex items-center gap-1"
+                  className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface-container text-primary font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-sm">calendar_month</span>
+                  <Calendar className="w-3.5 h-3.5" />
                   <span>Buka di Kalender</span>
                 </Link>
                 <button

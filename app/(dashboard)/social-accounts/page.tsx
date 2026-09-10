@@ -3,6 +3,23 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  Loader2,
+  Share2,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Key,
+  Check,
+  ExternalLink,
+  RotateCcw,
+  BadgeCheck,
+  Lock,
+  Info,
+  Save,
+  Unlink,
+  Link2,
+} from "lucide-react";
+import {
   getSocialAccountsData,
   saveZernioApiKey,
   getInstagramConnectUrlAction,
@@ -18,9 +35,7 @@ export default function SocialAccountsPage() {
       fallback={
         <div className="max-w-6xl mx-auto p-8 flex items-center justify-center min-h-[400px]">
           <div className="flex flex-col items-center gap-2 text-outline">
-            <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-              progress_activity
-            </span>
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <span className="font-label-md text-sm">Memuat Social Accounts...</span>
           </div>
         </div>
@@ -104,41 +119,39 @@ function SocialAccountsContent() {
       if (res.success) {
         setKeyFeedback({
           type: "success",
-          message: res.message || "API Key berhasil diverifikasi & disimpan!",
+          message: "API Key Zernio berhasil divalidasi dan disimpan!",
         });
         setApiKeyInput("");
         await loadData();
       } else {
         setKeyFeedback({
           type: "error",
-          message: res.error || "Gagal memverifikasi API Key.",
+          message: res.error || "Gagal menyimpan API Key Zernio.",
         });
       }
-    } catch (err: any) {
+    } catch {
       setKeyFeedback({
         type: "error",
-        message: err.message || "Terjadi kesalahan sistem.",
+        message: "Terjadi kesalahan jaringan saat menyimpan API Key.",
       });
     } finally {
       setIsSavingKey(false);
     }
   };
 
-  // Handle Remove API Key
+  // Handle Reset API Key
   const handleResetApiKey = async () => {
-    if (!confirm("Apakah Anda yakin ingin menghapus API Key Zernio? Akun terhubung tidak akan bisa mempublikasikan konten sampai Anda memasukkan API Key kembali.")) {
-      return;
-    }
-    setLoading(true);
+    if (!confirm("Apakah Anda yakin ingin mengganti API Key Zernio?")) return;
     try {
       await removeZernioApiKey();
+      await loadData();
+      setApiKeyInput("");
       setKeyFeedback({
         type: "info",
-        message: "API Key Zernio telah dihapus.",
+        message: "API Key telah direset. Silakan masukkan API Key yang baru.",
       });
-      await loadData();
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -148,23 +161,20 @@ function SocialAccountsContent() {
     setConnectFeedback({ type: null, message: "" });
 
     try {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const res = await getInstagramConnectUrlAction(origin);
-
+      const res = await getInstagramConnectUrlAction();
       if (res.success && res.authUrl) {
-        // Redirect user to Zernio Instagram OAuth portal
         window.location.href = res.authUrl;
       } else {
         setConnectFeedback({
           type: "error",
-          message: res.error || "Gagal membuka sesi otentikasi Instagram.",
+          message: res.error || "Gagal memulai sesi otorisasi Instagram Zernio.",
         });
         setIsConnectingInstagram(false);
       }
-    } catch (err: any) {
+    } catch {
       setConnectFeedback({
         type: "error",
-        message: err.message || "Gagal menghubungi server.",
+        message: "Terjadi kesalahan saat menghubungi server.",
       });
       setIsConnectingInstagram(false);
     }
@@ -172,7 +182,7 @@ function SocialAccountsContent() {
 
   // Handle Disconnect Account
   const handleDisconnect = async (accountId: string) => {
-    if (!confirm("Putuskan koneksi akun media sosial ini?")) return;
+    if (!confirm("Apakah Anda yakin ingin memutuskan koneksi akun ini?")) return;
 
     setDisconnectingId(accountId);
     try {
@@ -198,9 +208,7 @@ function SocialAccountsContent() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/30 pb-space-lg">
         <div>
           <div className="flex items-center gap-2 text-primary text-xs font-semibold uppercase tracking-wider mb-1">
-            <span className="material-symbols-outlined text-sm" data-icon="share">
-              share
-            </span>
+            <Share2 className="w-4 h-4" />
             <span>Integrasi & Saluran Publikasi</span>
           </div>
           <h1 className="font-headline-lg text-headline-lg font-bold text-on-surface tracking-tight">
@@ -233,44 +241,39 @@ function SocialAccountsContent() {
               : "bg-red-50 border-red-200 text-red-900"
           }`}
         >
-          <span
-            className={`material-symbols-outlined shrink-0 text-xl ${
-              connectFeedback.type === "success" ? "text-emerald-600" : "text-red-600"
-            }`}
-            data-icon={connectFeedback.type === "success" ? "check_circle" : "error"}
-          >
-            {connectFeedback.type === "success" ? "check_circle" : "error"}
-          </span>
+          {connectFeedback.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          )}
           <div className="flex-1 text-sm font-medium">
             {connectFeedback.message}
           </div>
           <button
             onClick={() => setConnectFeedback({ type: null, message: "" })}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-base">close</span>
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* 2. Step 1 Card: Konfigurasi Zernio API Key */}
       <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-xs overflow-hidden">
-        <div className="p-space-lg lg:p-space-xl border-b border-outline-variant/20 bg-gradient-to-r from-surface-container-lowest via-surface-container-low/40 to-surface-container-lowest">
-          <div className="flex items-start justify-between gap-4">
+        <div className="p-4 sm:p-space-lg lg:p-space-xl border-b border-outline-variant/20 bg-gradient-to-r from-surface-container-lowest via-surface-container-low/40 to-surface-container-lowest">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="flex items-start gap-3.5">
               <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 ring-1 ring-primary/20">
-                <span className="material-symbols-outlined text-2xl" data-icon="key">
-                  key
-                </span>
+                <Key className="w-5 h-5" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-headline-sm text-base sm:text-headline-sm font-bold text-on-surface">
                     1. Pengaturan Kunci API Zernio
                   </h2>
                   {isConfigured && (
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      <span className="material-symbols-outlined text-[13px]">check</span>
+                      <Check className="w-3 h-3" />
                       Terhubung
                     </span>
                   )}
@@ -281,10 +284,10 @@ function SocialAccountsContent() {
                     href="https://zernio.com"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-primary font-semibold hover:underline inline-flex items-center gap-0.5"
+                    className="text-primary font-semibold hover:underline inline-flex items-center gap-1"
                   >
                     Dashboard Zernio
-                    <span className="material-symbols-outlined text-xs">open_in_new</span>
+                    <ExternalLink className="w-3 h-3" />
                   </a>
                   .
                 </p>
@@ -295,23 +298,23 @@ function SocialAccountsContent() {
               <button
                 type="button"
                 onClick={handleResetApiKey}
-                className="text-xs text-error hover:bg-error-container/30 px-2.5 py-1 rounded-lg transition-colors font-medium shrink-0 flex items-center gap-1"
+                className="text-xs text-error hover:bg-error-container/30 px-2.5 py-1 rounded-lg transition-colors font-medium shrink-0 flex items-center gap-1 cursor-pointer self-start"
                 title="Reset API Key"
               >
-                <span className="material-symbols-outlined text-sm">restart_alt</span>
-                <span className="hidden sm:inline">Ganti Key</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Ganti Key</span>
               </button>
             )}
           </div>
         </div>
 
-        <div className="p-space-lg lg:p-space-xl">
+        <div className="p-4 sm:p-space-lg lg:p-space-xl">
           {/* Key Status or Input Form */}
           {isConfigured && !apiKeyInput ? (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-surface border border-outline-variant/30">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-mono text-xs">
-                  <span className="material-symbols-outlined text-base">verified</span>
+                  <BadgeCheck className="w-5 h-5" />
                 </div>
                 <div>
                   <p className="font-label-md text-label-md font-semibold text-on-surface">
@@ -325,7 +328,7 @@ function SocialAccountsContent() {
               <button
                 type="button"
                 onClick={() => setApiKeyInput(" ")}
-                className="text-xs font-semibold text-primary hover:underline"
+                className="text-xs font-semibold text-primary hover:underline cursor-pointer"
               >
                 Ubah Kunci API
               </button>
@@ -337,24 +340,19 @@ function SocialAccountsContent() {
                   Zernio API Secret Key
                 </label>
                 <div className="relative max-w-2xl">
-                  <span
-                    className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-lg"
-                    data-icon="lock"
-                  >
-                    lock
-                  </span>
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none" />
                   <input
                     type={showApiKey ? "text" : "password"}
                     value={apiKeyInput}
                     onChange={(e) => setApiKeyInput(e.target.value)}
                     placeholder="Contoh: zn_live_abcdef1234567890..."
                     disabled={isSavingKey}
-                    className="w-full pl-10 pr-24 py-2.5 bg-surface rounded-xl border border-outline-variant/40 text-body-md font-code-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm transition-all"
+                    className="w-full pl-10 pr-24 py-2.5 bg-surface rounded-xl border border-outline-variant/40 text-body-md font-code-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-xs sm:text-sm transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface text-xs font-medium px-2 py-1 rounded transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface text-xs font-medium px-2 py-1 rounded transition-colors cursor-pointer"
                   >
                     {showApiKey ? "Sembunyikan" : "Tampilkan"}
                   </button>
@@ -375,35 +373,31 @@ function SocialAccountsContent() {
                       : "bg-red-50 border-red-200 text-red-800"
                   }`}
                 >
-                  <span className="material-symbols-outlined text-base shrink-0">
-                    {keyFeedback.type === "success"
-                      ? "check_circle"
-                      : keyFeedback.type === "info"
-                      ? "info"
-                      : "error"}
-                  </span>
+                  {keyFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  ) : keyFeedback.type === "info" ? (
+                    <Info className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                  )}
                   <span>{keyFeedback.message}</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button
                   type="submit"
                   disabled={isSavingKey || !apiKeyInput.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] cursor-pointer text-xs sm:text-sm"
                 >
                   {isSavingKey ? (
                     <>
-                      <span className="material-symbols-outlined animate-spin text-base">
-                        progress_activity
-                      </span>
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Memverifikasi dengan Zernio...</span>
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined text-base" data-icon="save">
-                        save
-                      </span>
+                      <Save className="w-4 h-4" />
                       <span>Simpan & Verifikasi API Key</span>
                     </>
                   )}
@@ -416,7 +410,7 @@ function SocialAccountsContent() {
                       setApiKeyInput("");
                       setKeyFeedback({ type: null, message: "" });
                     }}
-                    className="px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface text-xs font-medium transition-colors"
+                    className="px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface text-xs font-medium transition-colors cursor-pointer"
                   >
                     Batal
                   </button>
@@ -474,7 +468,7 @@ function SocialAccountsContent() {
                 {/* Requirements Bullet Points */}
                 <div className="mt-3 p-2.5 rounded-lg bg-surface border border-outline-variant/30 text-[11px] text-outline space-y-1">
                   <div className="flex items-center gap-1.5 text-on-surface-variant font-medium">
-                    <span className="material-symbols-outlined text-xs text-primary">info</span>
+                    <Info className="w-3.5 h-3.5 text-primary" />
                     <span>Persyaratan Akun:</span>
                   </div>
                   <p>• Wajib Instagram Business / Creator</p>
@@ -486,7 +480,7 @@ function SocialAccountsContent() {
               <div className="mt-5 pt-3 border-t border-outline-variant/30 space-y-2">
                 {connectFeedback.message && connectFeedback.type === "error" && (
                   <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-start gap-1.5">
-                    <span className="material-symbols-outlined text-sm shrink-0 mt-0.5">error</span>
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span className="flex-1">{connectFeedback.message}</span>
                   </div>
                 )}
@@ -500,18 +494,16 @@ function SocialAccountsContent() {
                           @{connectedInstagram[0].username} (Terhubung)
                         </span>
                       </div>
-                      <span className="material-symbols-outlined text-emerald-600 text-base">
-                        verified
-                      </span>
+                      <BadgeCheck className="w-4 h-4 text-emerald-600" />
                     </div>
 
                     <button
                       type="button"
                       onClick={() => handleDisconnect(connectedInstagram[0].providerAccountId || connectedInstagram[0].id)}
                       disabled={disconnectingId === (connectedInstagram[0].providerAccountId || connectedInstagram[0].id)}
-                      className="w-full py-2 px-3 rounded-xl border border-error/30 text-error hover:bg-error-container/30 text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+                      className="w-full py-2 px-3 rounded-xl border border-error/30 text-error hover:bg-error-container/30 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-sm">link_off</span>
+                      <Unlink className="w-3.5 h-3.5" />
                       <span>Putuskan Akun Instagram</span>
                     </button>
                   </div>
@@ -520,20 +512,16 @@ function SocialAccountsContent() {
                     type="button"
                     onClick={handleConnectInstagram}
                     disabled={isConnectingInstagram}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 hover:opacity-95 text-white font-label-md text-label-md font-semibold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 hover:opacity-95 text-white font-label-md text-label-md font-semibold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer text-xs sm:text-sm"
                   >
                     {isConnectingInstagram ? (
                       <>
-                        <span className="material-symbols-outlined animate-spin text-base">
-                          progress_activity
-                        </span>
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         <span>Menghubungkan ke Zernio...</span>
                       </>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined text-base" data-icon="add_link">
-                          add_link
-                        </span>
+                        <Link2 className="w-4 h-4" />
                         <span>Hubungkan Akun Instagram</span>
                       </>
                     )}
@@ -672,8 +660,8 @@ function SocialAccountsContent() {
           </div>
 
           {/* 4. Daftar Akun Terhubung */}
-          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-space-lg lg:p-space-xl shadow-xs">
-            <div className="flex items-center justify-between border-b border-outline-variant/20 pb-4 mb-5">
+          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-4 sm:p-space-lg lg:p-space-xl shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-outline-variant/20 pb-4 mb-5 gap-2">
               <div>
                 <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
                   Daftar Akun Terhubung
@@ -682,16 +670,14 @@ function SocialAccountsContent() {
                   Akun yang aktif akan dijadikan tujuan penerbitan konten otomatis oleh AI Content Planner.
                 </p>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-variant text-on-surface-variant">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-variant text-on-surface-variant self-start sm:self-auto">
                 {data?.connectedAccounts.length || 0} Terhubung
               </span>
             </div>
 
             {loading ? (
               <div className="py-12 flex flex-col items-center justify-center text-outline gap-2">
-                <span className="material-symbols-outlined animate-spin text-2xl">
-                  progress_activity
-                </span>
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 <span className="text-xs font-medium">Memuat data akun...</span>
               </div>
             ) : data && data.connectedAccounts.length > 0 ? (
@@ -703,7 +689,7 @@ function SocialAccountsContent() {
                   >
                     <div className="flex items-center gap-3.5">
                       {/* Avatar */}
-                      <div className="relative w-12 h-12 rounded-full ring-2 ring-primary/20 overflow-hidden bg-surface-container flex items-center justify-center text-primary font-bold">
+                      <div className="relative w-12 h-12 rounded-full ring-2 ring-primary/20 overflow-hidden bg-surface-container flex items-center justify-center text-primary font-bold shrink-0">
                         {account.profilePictureUrl ? (
                           <img
                             src={account.profilePictureUrl}
@@ -719,39 +705,37 @@ function SocialAccountsContent() {
                         </div>
                       </div>
 
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-headline-sm text-base font-bold text-on-surface">
+                          <p className="font-headline-sm text-base font-bold text-on-surface truncate">
                             {account.displayName || account.username}
                           </p>
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             Aktif
                           </span>
                         </div>
-                        <p className="font-code-sm text-xs text-outline mt-0.5">
+                        <p className="font-code-sm text-xs text-outline mt-0.5 truncate">
                           @{account.username} · Instagram Business
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
                       <button
                         type="button"
                         onClick={() => handleDisconnect(account.providerAccountId || account.id)}
                         disabled={disconnectingId === (account.providerAccountId || account.id)}
-                        className="px-3 py-1.5 rounded-lg border border-outline-variant/40 hover:border-error/40 hover:bg-error-container/30 text-outline hover:text-error text-xs font-medium transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-lg border border-outline-variant/40 hover:border-error/40 hover:bg-error-container/30 text-outline hover:text-error text-xs font-medium transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                       >
                         {disconnectingId === (account.providerAccountId || account.id) ? (
                           <>
-                            <span className="material-symbols-outlined animate-spin text-sm">
-                              progress_activity
-                            </span>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>Memutuskan...</span>
                           </>
                         ) : (
                           <>
-                            <span className="material-symbols-outlined text-sm">link_off</span>
+                            <Unlink className="w-3.5 h-3.5" />
                             <span>Putuskan Koneksi</span>
                           </>
                         )}
@@ -763,7 +747,7 @@ function SocialAccountsContent() {
             ) : (
               <div className="py-12 border-2 border-dashed border-outline-variant/30 rounded-2xl flex flex-col items-center justify-center text-center p-6 bg-surface">
                 <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3">
-                  <span className="material-symbols-outlined text-2xl">link</span>
+                  <Link2 className="w-6 h-6" />
                 </div>
                 <h4 className="font-headline-sm text-base font-bold text-on-surface">
                   Belum Ada Akun Terhubung
@@ -779,7 +763,7 @@ function SocialAccountsContent() {
         /* Empty state guidance when API Key not yet saved */
         <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-space-xl text-center flex flex-col items-center justify-center py-16">
           <div className="w-14 h-14 rounded-2xl bg-secondary-container/40 text-primary flex items-center justify-center mb-4 ring-4 ring-primary/10">
-            <span className="material-symbols-outlined text-3xl">lock</span>
+            <Lock className="w-7 h-7" />
           </div>
           <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
             Koneksi Media Sosial Terkunci

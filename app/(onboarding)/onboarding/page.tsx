@@ -3,6 +3,31 @@
 import React, { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Check,
+  AlertCircle,
+  Building2,
+  Loader2,
+  ArrowRight,
+  Store,
+  Info,
+  Users,
+  ShoppingBag,
+  Plus,
+  Trash2,
+  Tag,
+  ChevronUp,
+  ChevronDown,
+  ArrowLeft,
+  Palette,
+  ImageIcon,
+  Smile,
+  Briefcase,
+  MessageSquare,
+  GraduationCap,
+  Megaphone,
+  CheckCircle2,
+} from "lucide-react";
+import {
   saveWorkspaceStep,
   saveBusinessProfileStep,
   saveBrandKitStep,
@@ -440,9 +465,7 @@ export default function OnboardingWizardPage() {
               }`}
             >
               {currentStep > 1 ? (
-                <span className="material-symbols-outlined text-[18px]">
-                  check
-                </span>
+                <Check className="w-[18px] h-[18px]" />
               ) : (
                 "1"
               )}
@@ -474,9 +497,7 @@ export default function OnboardingWizardPage() {
               }`}
             >
               {currentStep > 2 ? (
-                <span className="material-symbols-outlined text-[18px]">
-                  check
-                </span>
+                <Check className="w-[18px] h-[18px]" />
               ) : (
                 "2"
               )}
@@ -526,9 +547,7 @@ export default function OnboardingWizardPage() {
       {/* ── ERROR ALERT ── */}
       {errorMsg && (
         <div className="w-full max-w-2xl mb-6 p-4 rounded-xl bg-error-container border border-error/30 flex items-start gap-3">
-          <span className="material-symbols-outlined text-error text-[20px] shrink-0 mt-0.5">
-            error
-          </span>
+          <AlertCircle className="w-5 h-5 text-error shrink-0 mt-0.5" />
           <div className="text-on-error-container text-body-sm font-medium">
             {errorMsg}
           </div>
@@ -540,9 +559,7 @@ export default function OnboardingWizardPage() {
         <div className="w-full max-w-2xl bg-surface-container-lowest border border-outline-variant/50 rounded-2xl p-6 sm:p-8 shadow-xs">
           <div className="mb-6">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary-container/10 text-primary-container font-label-sm text-label-sm font-semibold mb-2">
-              <span className="material-symbols-outlined text-[16px]">
-                domain
-              </span>
+              <Building2 className="w-4 h-4" />
               Langkah 1 dari 3
             </div>
             <h1 className="font-headline-md text-headline-md font-bold text-on-surface tracking-tight">
@@ -615,17 +632,13 @@ export default function OnboardingWizardPage() {
               >
                 {isPending ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader2 className="w-[18px] h-[18px] animate-spin" />
                     <span>Menyimpan...</span>
                   </>
                 ) : (
                   <>
                     <span>Lanjut ke Profil Bisnis</span>
-                    <span className="material-symbols-outlined text-[18px]">
-                      arrow_forward
-                    </span>
+                    <ArrowRight className="w-[18px] h-[18px]" />
                   </>
                 )}
               </button>
@@ -639,9 +652,7 @@ export default function OnboardingWizardPage() {
         <div className="w-full max-w-3xl bg-surface-container-lowest border border-outline-variant/50 rounded-2xl p-6 sm:p-8 shadow-xs">
           <div className="mb-6">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary-container/10 text-primary-container font-label-sm text-label-sm font-semibold mb-2">
-              <span className="material-symbols-outlined text-[16px]">
-                storefront
-              </span>
+              <Store className="w-4 h-4" />
               Langkah 2 dari 3
             </div>
             <h1 className="font-headline-md text-headline-md font-bold text-on-surface tracking-tight">
@@ -656,9 +667,7 @@ export default function OnboardingWizardPage() {
             {/* 1. Basic Information */}
             <div className="space-y-4">
               <h2 className="font-headline-sm text-label-md font-bold text-on-surface flex items-center gap-2 border-b border-outline-variant/30 pb-2">
-                <span className="material-symbols-outlined text-[18px] text-primary">
-                  info
-                </span>
+                <Info className="w-[18px] h-[18px] text-primary" />
                 Basic Information
               </h2>
 
@@ -783,9 +792,7 @@ export default function OnboardingWizardPage() {
             {/* 2. Target Audience */}
             <div className="space-y-2 pt-2 border-t border-outline-variant/30">
               <h2 className="font-headline-sm text-label-md font-bold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary">
-                  groups
-                </span>
+                <Users className="w-[18px] h-[18px] text-primary" />
                 Target Audience
               </h2>
               <label
@@ -810,9 +817,7 @@ export default function OnboardingWizardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-headline-sm text-label-md font-bold text-on-surface flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-primary">
-                      shopping_bag
-                    </span>
+                    <ShoppingBag className="w-[18px] h-[18px] text-primary" />
                     Products / Services
                   </h2>
                   <p className="font-label-sm text-label-sm text-on-surface-variant">
@@ -824,9 +829,7 @@ export default function OnboardingWizardPage() {
                   onClick={handleAddProduct}
                   className="px-3 py-1.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/5 font-label-sm text-label-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[16px]">
-                    add
-                  </span>
+                  <Plus className="w-4 h-4" />
                   Tambah Item
                 </button>
               </div>
@@ -847,9 +850,7 @@ export default function OnboardingWizardPage() {
                           onClick={() => handleRemoveProduct(p.id)}
                           className="text-outline hover:text-error transition-colors text-xs flex items-center gap-1 cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[16px]">
-                            delete
-                          </span>
+                          <Trash2 className="w-4 h-4" />
                           Hapus
                         </button>
                       )}
@@ -929,17 +930,17 @@ export default function OnboardingWizardPage() {
                 className="flex items-center justify-between w-full text-left font-headline-sm text-label-md font-bold text-on-surface hover:text-primary transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-tertiary">
-                    local_offer
-                  </span>
+                  <Tag className="w-[18px] h-[18px] text-tertiary" />
                   <span>Promotion (Opsional)</span>
                   <span className="text-xs font-normal text-outline">
                     {showPromotion ? "Sembunyikan" : "Buka form promo"}
                   </span>
                 </div>
-                <span className="material-symbols-outlined text-[20px]">
-                  {showPromotion ? "expand_less" : "expand_more"}
-                </span>
+                {showPromotion ? (
+                  <ChevronUp className="w-5 h-5 text-on-surface-variant" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-on-surface-variant" />
+                )}
               </button>
 
               {showPromotion && (
@@ -1010,9 +1011,7 @@ export default function OnboardingWizardPage() {
                 }}
                 className="h-11 px-5 rounded-lg border border-outline-variant/80 text-on-surface hover:bg-surface-container font-label-md text-label-md font-medium transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  arrow_back
-                </span>
+                <ArrowLeft className="w-[18px] h-[18px]" />
                 <span>Kembali</span>
               </button>
 
@@ -1023,17 +1022,13 @@ export default function OnboardingWizardPage() {
               >
                 {isPending ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader2 className="w-[18px] h-[18px] animate-spin" />
                     <span>Menyimpan Profil...</span>
                   </>
                 ) : (
                   <>
                     <span>Save & Continue</span>
-                    <span className="material-symbols-outlined text-[18px]">
-                      arrow_forward
-                    </span>
+                    <ArrowRight className="w-[18px] h-[18px]" />
                   </>
                 )}
               </button>
@@ -1047,9 +1042,7 @@ export default function OnboardingWizardPage() {
         <div className="w-full max-w-3xl bg-surface-container-lowest border border-outline-variant/50 rounded-2xl p-6 sm:p-8 shadow-xs">
           <div className="mb-6">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary-container/10 text-primary-container font-label-sm text-label-sm font-semibold mb-2">
-              <span className="material-symbols-outlined text-[16px]">
-                palette
-              </span>
+              <Palette className="w-4 h-4" />
               Langkah 3 dari 3
             </div>
             <h1 className="font-headline-md text-headline-md font-bold text-on-surface tracking-tight">
@@ -1075,9 +1068,7 @@ export default function OnboardingWizardPage() {
                       className="w-full h-full object-contain"
                     />
                   ) : (
-                    <span className="material-symbols-outlined text-outline text-[32px]">
-                      image
-                    </span>
+                    <ImageIcon className="w-8 h-8 text-outline" />
                   )}
                 </div>
                 <div className="flex-1 text-center sm:text-left">
@@ -1201,28 +1192,29 @@ export default function OnboardingWizardPage() {
               </label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: "Friendly", icon: "sentiment_satisfied" },
-                  { id: "Professional", icon: "work" },
-                  { id: "Casual", icon: "chat" },
-                  { id: "Educational", icon: "school" },
-                  { id: "Persuasive", icon: "campaign" },
-                ].map((tone) => (
-                  <button
-                    key={tone.id}
-                    type="button"
-                    onClick={() => setWritingTone(tone.id)}
-                    className={`px-3.5 py-2 rounded-lg border font-label-md text-label-md font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-                      writingTone === tone.id
-                        ? "border-primary bg-primary text-on-primary shadow-2xs"
-                        : "border-outline-variant/70 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">
-                      {tone.icon}
-                    </span>
-                    <span>{tone.id}</span>
-                  </button>
-                ))}
+                  { id: "Friendly", icon: Smile },
+                  { id: "Professional", icon: Briefcase },
+                  { id: "Casual", icon: MessageSquare },
+                  { id: "Educational", icon: GraduationCap },
+                  { id: "Persuasive", icon: Megaphone },
+                ].map((tone) => {
+                  const ToneIcon = tone.icon;
+                  return (
+                    <button
+                      key={tone.id}
+                      type="button"
+                      onClick={() => setWritingTone(tone.id)}
+                      className={`px-3.5 py-2 rounded-lg border font-label-md text-label-md font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                        writingTone === tone.id
+                          ? "border-primary bg-primary text-on-primary shadow-2xs"
+                          : "border-outline-variant/70 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
+                      }`}
+                    >
+                      <ToneIcon className="w-[18px] h-[18px]" />
+                      <span>{tone.id}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1284,9 +1276,7 @@ export default function OnboardingWizardPage() {
                 }}
                 className="h-11 px-5 rounded-lg border border-outline-variant/80 text-on-surface hover:bg-surface-container font-label-md text-label-md font-medium transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  arrow_back
-                </span>
+                <ArrowLeft className="w-[18px] h-[18px]" />
                 <span>Kembali</span>
               </button>
 
@@ -1298,17 +1288,13 @@ export default function OnboardingWizardPage() {
               >
                 {isPending ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader2 className="w-[18px] h-[18px] animate-spin" />
                     <span>Menyimpan & Menyiapkan AI...</span>
                   </>
                 ) : (
                   <>
                     <span>Selesaikan & Masuk ke Dashboard</span>
-                    <span className="material-symbols-outlined text-[18px]">
-                      check_circle
-                    </span>
+                    <CheckCircle2 className="w-[18px] h-[18px]" />
                   </>
                 )}
               </button>

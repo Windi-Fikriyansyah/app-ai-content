@@ -3,6 +3,27 @@
 import React, { useState, useEffect, useTransition, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Building2,
+  Store,
+  Palette,
+  Loader2,
+  Save,
+  Plus,
+  Trash2,
+  Tag,
+  ChevronUp,
+  ChevronDown,
+  ImageIcon,
+  Smile,
+  Briefcase,
+  MessageSquare,
+  GraduationCap,
+  Megaphone,
+} from "lucide-react";
+import {
   getSettingsData,
   updateWorkspaceSettings,
   updateBusinessProfileSettings,
@@ -364,9 +385,11 @@ function SettingsContent() {
           }`}
         >
           <div className="flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-[20px]">
-              {feedback.type === "success" ? "check_circle" : "error"}
-            </span>
+            {feedback.type === "success" ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            )}
             <span className="font-label-md text-label-md font-semibold">
               {feedback.message}
             </span>
@@ -376,7 +399,7 @@ function SettingsContent() {
             onClick={() => setFeedback(null)}
             className="text-xs hover:opacity-70 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -392,7 +415,7 @@ function SettingsContent() {
               : "border-transparent text-on-surface-variant hover:text-on-surface"
           }`}
         >
-          <span className="material-symbols-outlined text-[20px]">domain</span>
+          <Building2 className="w-4 h-4" />
           <span>Workspace & Akun</span>
         </button>
 
@@ -405,9 +428,7 @@ function SettingsContent() {
               : "border-transparent text-on-surface-variant hover:text-on-surface"
           }`}
         >
-          <span className="material-symbols-outlined text-[20px]">
-            storefront
-          </span>
+          <Store className="w-4 h-4" />
           <span>Business Profile & Produk</span>
         </button>
 
@@ -420,7 +441,7 @@ function SettingsContent() {
               : "border-transparent text-on-surface-variant hover:text-on-surface"
           }`}
         >
-          <span className="material-symbols-outlined text-[20px]">palette</span>
+          <Palette className="w-4 h-4" />
           <span>Brand Kit</span>
         </button>
       </div>
@@ -515,16 +536,12 @@ function SettingsContent() {
               >
                 {isPending ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader2 className="w-[18px] h-[18px] animate-spin" />
                     <span>Menyimpan...</span>
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[18px]">
-                      save
-                    </span>
+                    <Save className="w-[18px] h-[18px]" />
                     <span>Simpan Perubahan Workspace</span>
                   </>
                 )}
@@ -708,9 +725,7 @@ function SettingsContent() {
                   onClick={handleAddProduct}
                   className="px-3 py-1.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/5 font-label-sm text-label-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[16px]">
-                    add
-                  </span>
+                  <Plus className="w-4 h-4" />
                   Tambah Item
                 </button>
               </div>
@@ -731,9 +746,7 @@ function SettingsContent() {
                           onClick={() => handleRemoveProduct(idx)}
                           className="text-outline hover:text-error transition-colors text-xs flex items-center gap-1 cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[16px]">
-                            delete
-                          </span>
+                          <Trash2 className="w-4 h-4" />
                           Hapus
                         </button>
                       )}
@@ -807,14 +820,14 @@ function SettingsContent() {
                 className="flex items-center justify-between w-full text-left font-label-md text-label-md font-bold text-on-surface hover:text-primary transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-tertiary">
-                    local_offer
-                  </span>
+                  <Tag className="w-[18px] h-[18px] text-tertiary" />
                   <span>4. Promosi Sedang Berjalan (Opsional)</span>
                 </div>
-                <span className="material-symbols-outlined text-[20px]">
-                  {showPromotion ? "expand_less" : "expand_more"}
-                </span>
+                {showPromotion ? (
+                  <ChevronUp className="w-5 h-5 text-on-surface-variant" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-on-surface-variant" />
+                )}
               </button>
 
               {showPromotion && (
@@ -882,16 +895,12 @@ function SettingsContent() {
               >
                 {isPending ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader2 className="w-[18px] h-[18px] animate-spin" />
                     <span>Menyimpan Profil...</span>
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[18px]">
-                      save
-                    </span>
+                    <Save className="w-[18px] h-[18px]" />
                     <span>Simpan Perubahan Business Profile</span>
                   </>
                 )}
@@ -933,9 +942,7 @@ function SettingsContent() {
                       className="w-full h-full object-contain"
                     />
                   ) : (
-                    <span className="material-symbols-outlined text-outline text-[32px]">
-                      image
-                    </span>
+                    <ImageIcon className="w-8 h-8 text-outline" />
                   )}
                 </div>
                 <div className="flex-1 text-center sm:text-left">
@@ -1057,28 +1064,29 @@ function SettingsContent() {
               </label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: "Friendly", icon: "sentiment_satisfied" },
-                  { id: "Professional", icon: "work" },
-                  { id: "Casual", icon: "chat" },
-                  { id: "Educational", icon: "school" },
-                  { id: "Persuasive", icon: "campaign" },
-                ].map((tone) => (
-                  <button
-                    key={tone.id}
-                    type="button"
-                    onClick={() => setWritingTone(tone.id)}
-                    className={`px-3.5 py-2 rounded-lg border font-label-md text-label-md font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-                      writingTone === tone.id
-                        ? "border-primary bg-primary text-on-primary shadow-2xs"
-                        : "border-outline-variant/70 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">
-                      {tone.icon}
-                    </span>
-                    <span>{tone.id}</span>
-                  </button>
-                ))}
+                  { id: "Friendly", icon: Smile },
+                  { id: "Professional", icon: Briefcase },
+                  { id: "Casual", icon: MessageSquare },
+                  { id: "Educational", icon: GraduationCap },
+                  { id: "Persuasive", icon: Megaphone },
+                ].map((tone) => {
+                  const ToneIcon = tone.icon;
+                  return (
+                    <button
+                      key={tone.id}
+                      type="button"
+                      onClick={() => setWritingTone(tone.id)}
+                      className={`px-3.5 py-2 rounded-lg border font-label-md text-label-md font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                        writingTone === tone.id
+                          ? "border-primary bg-primary text-on-primary shadow-2xs"
+                          : "border-outline-variant/70 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
+                      }`}
+                    >
+                      <ToneIcon className="w-[18px] h-[18px]" />
+                      <span>{tone.id}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1137,16 +1145,12 @@ function SettingsContent() {
               >
                 {isPending ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader2 className="w-[18px] h-[18px] animate-spin" />
                     <span>Menyimpan Brand Kit...</span>
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[18px]">
-                      save
-                    </span>
+                    <Save className="w-[18px] h-[18px]" />
                     <span>Simpan Perubahan Brand Kit</span>
                   </>
                 )}

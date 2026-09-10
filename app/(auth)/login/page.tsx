@@ -2,6 +2,19 @@
 
 import React, { useState, useActionState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  AlertCircle,
+  Bot,
+  Building2,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2,
+  ArrowRight,
+  ShieldCheck,
+  Shield,
+} from "lucide-react";
 import { loginWithEmail, loginWithGoogle } from "./actions";
 
 function LoginErrorBanner() {
@@ -21,9 +34,7 @@ function LoginErrorBanner() {
 
   return (
     <div className="mb-space-md p-space-sm rounded-lg bg-error-container border border-error/30 flex items-center gap-2">
-      <span className="material-symbols-outlined text-[18px] text-on-error-container">
-        error
-      </span>
+      <AlertCircle className="w-[18px] h-[18px] text-on-error-container shrink-0" />
       <span className="font-body-sm text-body-sm text-on-error-container">
         {message}
       </span>
@@ -52,13 +63,7 @@ function LoginForm() {
         {/* Brand Anchor: Logo & Identity */}
         <div className="flex flex-col items-center text-center mb-space-lg">
           <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-on-primary mb-space-sm shadow-sm">
-            <span
-              className="material-symbols-outlined text-[22px]"
-              data-icon="smart_toy"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              smart_toy
-            </span>
+            <Bot className="w-6 h-6" />
           </div>
           <span className="font-headline-sm text-headline-sm font-bold text-on-surface tracking-tight">
             AutoContent AI
@@ -116,12 +121,7 @@ function LoginForm() {
             type="button"
             className="flex items-center justify-center gap-2 py-2 px-space-sm bg-surface-container-lowest hover:bg-surface-container border border-outline-variant/60 hover:border-outline rounded-lg text-on-surface transition-all duration-150 active:scale-[0.99] cursor-pointer"
           >
-            <span
-              className="material-symbols-outlined text-[18px] text-on-surface-variant"
-              data-icon="domain"
-            >
-              domain
-            </span>
+            <Building2 className="w-[18px] h-[18px] text-on-surface-variant" />
             <span className="font-label-md text-label-md text-on-surface">SSO / Bisnis</span>
           </button>
         </div>
@@ -140,9 +140,7 @@ function LoginForm() {
         {/* Error Message */}
         {emailState?.error && (
           <div className="mb-space-md p-space-sm rounded-lg bg-error-container border border-error/30 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-on-error-container">
-              error
-            </span>
+            <AlertCircle className="w-[18px] h-[18px] text-on-error-container shrink-0" />
             <span className="font-body-sm text-body-sm text-on-error-container">
               {emailState.error}
             </span>
@@ -161,9 +159,7 @@ function LoginForm() {
             </label>
             <div className="relative rounded-lg">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-outline">
-                <span className="material-symbols-outlined text-[18px]" data-icon="mail">
-                  mail
-                </span>
+                <Mail className="w-[18px] h-[18px]" />
               </div>
               <input
                 autoComplete="email"
@@ -195,9 +191,7 @@ function LoginForm() {
             </div>
             <div className="relative rounded-lg">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-outline">
-                <span className="material-symbols-outlined text-[18px]" data-icon="lock">
-                  lock
-                </span>
+                <Lock className="w-[18px] h-[18px]" />
               </div>
               <input
                 autoComplete="current-password"
@@ -214,9 +208,11 @@ function LoginForm() {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  {showPassword ? "visibility_off" : "visibility"}
-                </span>
+                {showPassword ? (
+                  <EyeOff className="w-[18px] h-[18px]" />
+                ) : (
+                  <Eye className="w-[18px] h-[18px]" />
+                )}
               </button>
             </div>
           </div>
@@ -245,17 +241,13 @@ function LoginForm() {
             >
               {emailPending ? (
                 <>
-                  <span className="material-symbols-outlined text-[18px] animate-spin">
-                    progress_activity
-                  </span>
+                  <Loader2 className="w-[18px] h-[18px] animate-spin" />
                   <span>Memproses...</span>
                 </>
               ) : (
                 <>
                   <span>Masuk ke Dashboard</span>
-                  <span className="material-symbols-outlined text-[18px]" data-icon="arrow_forward">
-                    arrow_forward
-                  </span>
+                  <ArrowRight className="w-[18px] h-[18px]" />
                 </>
               )}
             </button>
@@ -277,16 +269,12 @@ function LoginForm() {
         {/* Minimal Security & Compliance Indicator */}
         <div className="flex items-center justify-center gap-4 mt-space-md text-outline font-label-sm text-label-sm">
           <span className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]" data-icon="verified_user">
-              verified_user
-            </span>
+            <ShieldCheck className="w-3.5 h-3.5" />
             SOC-2 Certified
           </span>
           <span>•</span>
           <span className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]" data-icon="shield">
-              shield
-            </span>
+            <Shield className="w-3.5 h-3.5" />
             256-bit SSL
           </span>
         </div>
