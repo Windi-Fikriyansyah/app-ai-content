@@ -14,7 +14,7 @@ module.exports = {
     {
       name: "nextjs-web",
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3000",
+      args: "start -p 3007",
       instances: 1, // atau "max" untuk multi-core cluster
       exec_mode: "fork",
       autorestart: true,
@@ -22,7 +22,7 @@ module.exports = {
       max_memory_restart: "1G",
       env: {
         NODE_ENV: "production",
-        PORT: 3000,
+        PORT: 3007,
       },
     },
     {
