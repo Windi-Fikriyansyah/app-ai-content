@@ -27,6 +27,8 @@ import { createGenerationWorker } from "../lib/queue/workers/generation-worker";
 import { createCaptionWorker } from "../lib/queue/workers/caption-worker";
 import { createImageWorker } from "../lib/queue/workers/image-worker";
 import { createReviewWorker } from "../lib/queue/workers/review-worker";
+import { createZernioDispatchWorker } from "../lib/queue/workers/zernio-dispatch-worker";
+import { createZernioWebhookWorker } from "../lib/queue/workers/zernio-webhook-worker";
 import { getRedisConnection } from "../lib/queue/redis";
 
 const redisDisplay = process.env.REDIS_URL
@@ -45,14 +47,18 @@ const generationWorker = createGenerationWorker();
 const captionWorker = createCaptionWorker();
 const imageWorker = createImageWorker();
 const reviewWorker = createReviewWorker();
+const zernioDispatchWorker = createZernioDispatchWorker();
+const zernioWebhookWorker = createZernioWebhookWorker();
 
 console.log("✅ [Queue: content-planning] Worker listening");
 console.log("✅ [Queue: content-generation] Worker listening");
 console.log("✅ [Queue: caption-generation] Worker listening");
 console.log("✅ [Queue: image-generation] Worker listening");
 console.log("✅ [Queue: content-review] Worker listening");
+console.log("✅ [Queue: zernio-dispatch] Worker listening");
+console.log("✅ [Queue: zernio-webhook] Worker listening");
 console.log("-------------------------------------------------");
-console.log("🎉 All 5 BullMQ workers are ready and waiting for jobs!");
+console.log("🎉 All 7 BullMQ workers are ready and waiting for jobs!");
 console.log("Press Ctrl+C to stop.\n");
 
 async function shutdown() {
@@ -63,6 +69,8 @@ async function shutdown() {
     captionWorker.close(),
     imageWorker.close(),
     reviewWorker.close(),
+    zernioDispatchWorker.close(),
+    zernioWebhookWorker.close(),
   ]);
 
   try {

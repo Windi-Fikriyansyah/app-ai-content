@@ -62,6 +62,11 @@ export interface ContentPlanItem {
   image_status?: string | null;
   generation_error?: string | null;
   generated_at?: string | null;
+  // Zernio Publishing fields
+  zernio_post_id?: string | null;
+  zernio_account_id?: string | null;
+  scheduled_at?: string | null;
+  published_at?: string | null;
 }
 
 export interface BusinessContext {

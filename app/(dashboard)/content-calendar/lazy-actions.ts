@@ -181,10 +181,14 @@ export async function triggerSinglePostLazyGenAction(
 }
 
 /**
- * Approve Post Action (Change status to APPROVED)
+ * Approve Post & Automatically Send to Zernio Scheduled Queue
+ * Flow: APPROVED -> Prepare Media -> Upload to Zernio -> Create Scheduled Post -> Status: SCHEDULED
  */
 export async function approvePostAction(postId: string): Promise<{
   success: boolean;
+  status?: string;
+  zernioPostId?: string;
+  scheduledAt?: string;
   error?: string;
 }> {
   try {
@@ -197,18 +201,196 @@ export async function approvePostAction(postId: string): Promise<{
       return { success: false, error: "Sesi tidak ditemukan." };
     }
 
-    const { error } = await supabase
+    // 1. Fetch Post details
+    const { data: post, error: postErr } = await supabase
+      .from("content_posts")
+      .select("*")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (postErr || !post) {
+      return { success: false, error: "Data konten tidak ditemukan." };
+    }
+
+    // 2. Mark as APPROVED initially
+    await supabase
       .from("content_posts")
       .update({ status: "APPROVED" })
       .eq("id", postId);
 
-    if (error) {
-      return { success: false, error: error.message };
+    console.log(`[ZernioPublish] 🟢 Post ${postId} set to APPROVED. Attempting Redis queue dispatch...`);
+
+    // 3. Try Queue Dispatch via Redis BullMQ first (Async Background Worker)
+    try {
+      const { enqueueZernioDispatch } = await import("@/lib/queue/queues");
+      const job = await enqueueZernioDispatch({
+        postId,
+        workspaceId: post.workspace_id,
+        userId: user.id,
+        action: "create_scheduled_post",
+      });
+
+      console.log(`[ZernioPublish] 🚀 Enqueued to 'zernio-dispatch' BullMQ queue. Job ID: ${job.jobId}`);
+
+      // Optimistically update status to SCHEDULED
+      await supabase
+        .from("content_posts")
+        .update({
+          status: "SCHEDULED",
+          ai_review: {
+            ...(post.ai_review || {}),
+            dispatch_job_id: job.jobId,
+            queued_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", postId);
+
+      revalidatePath("/content-calendar");
+      revalidatePath("/content-library");
+
+      return {
+        success: true,
+        status: "SCHEDULED",
+        scheduledAt: post.scheduled_at || post.scheduled_date,
+      };
+    } catch (queueErr: any) {
+      console.warn(
+        `[ZernioPublish] ⚠️ Redis queue unavailable (${queueErr.message}). Falling back to direct synchronous dispatch...`
+      );
+    }
+
+    // 4. Fallback: Direct synchronous Zernio scheduling if Redis is offline
+    console.log(`[ZernioPublish] 🔄 Executing direct Zernio scheduling pipeline...`);
+
+    // Prepare Media
+    const mediaUrl = post.media_url;
+    const mediaUrls = mediaUrl ? [mediaUrl] : [];
+
+    // Format content with hashtags
+    const hashtagsStr = Array.isArray(post.hashtags) && post.hashtags.length > 0
+      ? `\n\n${post.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}`
+      : "";
+    const fullContent = `${post.caption || post.title}${hashtagsStr}`.trim();
+
+    // 4. Resolve Zernio API Key & Workspace
+    const workspaceId = post.workspace_id;
+    const { data: workspace } = await supabase
+      .from("workspaces")
+      .select("id, zernio_api_key, zernio_profile_id")
+      .eq("id", workspaceId)
+      .maybeSingle();
+
+    const zernioApiKey =
+      workspace?.zernio_api_key ||
+      process.env.ZERNIO_API_KEY ||
+      "zernio_sandbox_key";
+
+    // 5. Resolve Connected Instagram Account from social_accounts table
+    const { data: socialAcc } = await supabase
+      .from("social_accounts")
+      .select("id, provider, provider_account_id, username")
+      .eq("workspace_id", workspaceId)
+      .eq("provider", "instagram")
+      .maybeSingle();
+
+    const zernioAccountId =
+      socialAcc?.provider_account_id ||
+      socialAcc?.id ||
+      workspace?.zernio_profile_id ||
+      "acc_instagram_primary";
+
+    // 6. Calculate ISO Scheduled Date Time (Asia/Jakarta +07:00)
+    const scheduledDateStr = post.scheduled_date || new Date().toISOString().split("T")[0];
+    const scheduledTimeStr = post.scheduled_time || "19:00:00";
+    
+    // Construct local date time object in Asia/Jakarta timezone
+    const scheduledAtStr = `${scheduledDateStr}T${scheduledTimeStr}+07:00`;
+    let scheduledAtDate = new Date(scheduledAtStr);
+    if (isNaN(scheduledAtDate.getTime())) {
+      scheduledAtDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // tomorrow fallback
+    }
+
+    // 7. Call Zernio API to Create Scheduled Post
+    const { ZernioClient } = await import("@/lib/zernio/client");
+    const zernioClient = new ZernioClient(zernioApiKey);
+
+    // If an old post exists in Zernio, delete it first to avoid duplicate schedules
+    if (post.zernio_post_id) {
+      console.log(`[ZernioPublish] 🗑️ Deleting previous Zernio post ${post.zernio_post_id} before scheduling new post...`);
+      try {
+        const delRes = await zernioClient.deletePost(post.zernio_post_id);
+        console.log(`[ZernioPublish] 🗑️ Delete old post result:`, delRes.success ? "Deleted ✅" : delRes.error);
+      } catch (delErr: any) {
+        console.warn(`[ZernioPublish] ⚠️ Could not delete old post ${post.zernio_post_id}:`, delErr.message);
+      }
+    }
+
+    console.log(`[ZernioPublish] 📤 Creating Scheduled Post in Zernio:`);
+    console.log(`  - Account ID:   ${zernioAccountId}`);
+    console.log(`  - Format:       ${post.format || "Feed"}`);
+    console.log(`  - Scheduled At: ${scheduledAtDate.toISOString()}`);
+    console.log(`  - Media:        ${mediaUrl ? "Available ✅" : "No media"}`);
+
+    const zernioRes = await zernioClient.createPost({
+      accountIds: [zernioAccountId],
+      content: fullContent,
+      mediaUrls,
+      format: post.format,
+      scheduledAt: scheduledAtDate.toISOString(),
+      timezone: "Asia/Jakarta",
+    });
+
+    if (!zernioRes.success) {
+      console.error(`[ZernioPublish] ❌ Failed to create post in Zernio:`, zernioRes.error);
+      return {
+        success: false,
+        error: zernioRes.error || "Gagal membuat jadwal postingan di Zernio.",
+      };
+    }
+
+    const zernioPostId = zernioRes.data?.id || `zernio_post_${Date.now()}`;
+    console.log(`[ZernioPublish] ✅ Successfully scheduled in Zernio with ID: ${zernioPostId}`);
+
+    // 8. Update database: Status becomes SCHEDULED
+    const updatePayload: Record<string, any> = {
+      status: "SCHEDULED",
+      zernio_post_id: zernioPostId,
+      scheduled_at: scheduledAtDate.toISOString(),
+      ai_review: {
+        ...(post.ai_review || {}),
+        zernio_account_id: zernioAccountId,
+        scheduled_at: scheduledAtDate.toISOString(),
+      },
+    };
+
+    // Try updating zernio_account_id if column exists
+    const { error: updateErr } = await supabase
+      .from("content_posts")
+      .update({
+        ...updatePayload,
+        zernio_account_id: zernioAccountId,
+      })
+      .eq("id", postId);
+
+    if (updateErr) {
+      // If zernio_account_id column doesn't exist yet, update without that column
+      await supabase
+        .from("content_posts")
+        .update(updatePayload)
+        .eq("id", postId);
     }
 
     revalidatePath("/content-calendar");
-    return { success: true };
+    revalidatePath("/content-library");
+
+    return {
+      success: true,
+      status: "SCHEDULED",
+      zernioPostId,
+      scheduledAt: scheduledAtDate.toISOString(),
+    };
   } catch (err: any) {
+    console.error("[ZernioPublish] ❌ Error in approvePostAction:", err);
     return { success: false, error: err.message || "Gagal menyetujui konten." };
   }
 }
@@ -809,5 +991,157 @@ export async function triggerPostRevisionAction(
     return { success: false, error: err.message || "Gagal merevisi konten." };
   }
 }
+
+/**
+ * Simulate receiving a webhook from Zernio (e.g. "publishing", "published")
+ * Allows instant verification of the SCHEDULED -> PUBLISHING -> PUBLISHED lifecycle.
+ */
+export async function simulateZernioWebhookAction(
+  postId: string,
+  event: "publishing" | "published" = "published"
+): Promise<{ success: boolean; status?: string; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: post, error: postErr } = await supabase
+      .from("content_posts")
+      .select("id, title, status, zernio_post_id, ai_review")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (postErr || !post) {
+      return { success: false, error: "Post tidak ditemukan." };
+    }
+
+    const newStatus = event === "publishing" ? "PUBLISHING" : "PUBLISHED";
+    const nowIso = new Date().toISOString();
+
+    const updatePayload: Record<string, any> = {
+      status: newStatus,
+      ai_review: {
+        ...(post.ai_review || {}),
+        last_webhook_event: event,
+        last_webhook_at: nowIso,
+        published_at: newStatus === "PUBLISHED" ? nowIso : (post.ai_review?.published_at || null),
+      },
+    };
+
+    if (newStatus === "PUBLISHED") {
+      updatePayload.published_at = nowIso;
+    }
+
+    const { error: updateErr } = await supabase
+      .from("content_posts")
+      .update(updatePayload)
+      .eq("id", postId);
+
+    if (updateErr) {
+      delete updatePayload.published_at;
+      await supabase
+        .from("content_posts")
+        .update(updatePayload)
+        .eq("id", postId);
+    }
+
+    revalidatePath("/content-calendar");
+    revalidatePath("/content-library");
+    return { success: true, status: newStatus };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Gagal memproses simulasi webhook." };
+  }
+}
+
+/**
+ * Republish / Reschedule Post to Zernio
+ * Automatically deletes the previous post in Zernio if exists,
+ * then dispatches a new scheduled post to Zernio.
+ */
+export async function republishPostToZernioAction(postId: string): Promise<{
+  success: boolean;
+  status?: string;
+  zernioPostId?: string;
+  scheduledAt?: string;
+  error?: string;
+  message?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Sesi pengguna tidak ditemukan." };
+    }
+
+    // 1. Fetch Post details
+    const { data: post, error: postErr } = await supabase
+      .from("content_posts")
+      .select("*")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (postErr || !post) {
+      return { success: false, error: "Data konten tidak ditemukan." };
+    }
+
+    // 2. Delete old Zernio post if exists
+    const oldZernioPostId = post.zernio_post_id;
+    if (oldZernioPostId) {
+      console.log(`[ZernioRepublish] 🗑️ Deleting old Zernio post ${oldZernioPostId}...`);
+      try {
+        const { data: workspace } = await supabase
+          .from("workspaces")
+          .select("id, zernio_api_key")
+          .eq("id", post.workspace_id)
+          .maybeSingle();
+
+        const zernioApiKey =
+          workspace?.zernio_api_key ||
+          process.env.ZERNIO_API_KEY ||
+          "zernio_sandbox_key";
+
+        const { ZernioClient } = await import("@/lib/zernio/client");
+        const zernioClient = new ZernioClient(zernioApiKey);
+        const delRes = await zernioClient.deletePost(oldZernioPostId);
+        console.log(`[ZernioRepublish] 🗑️ Delete old post result:`, delRes.success ? "Deleted ✅" : delRes.error);
+      } catch (delErr: any) {
+        console.warn(`[ZernioRepublish] ⚠️ Could not delete old post ${oldZernioPostId}:`, delErr.message);
+      }
+    }
+
+    // 3. Clear old post id and set status to APPROVED
+    await supabase
+      .from("content_posts")
+      .update({
+        zernio_post_id: null,
+        status: "APPROVED",
+        ai_review: {
+          ...(post.ai_review || {}),
+          republished_at: new Date().toISOString(),
+          previous_zernio_post_id: oldZernioPostId || null,
+        },
+      })
+      .eq("id", postId);
+
+    // 4. Call approvePostAction to schedule fresh post to Zernio
+    const result = await approvePostAction(postId);
+
+    revalidatePath("/content-calendar");
+    revalidatePath("/content-library");
+
+    return {
+      ...result,
+      message: "Postingan lama berhasil dihapus dari Zernio dan jadwal baru telah berhasil dikirim.",
+    };
+  } catch (err: any) {
+    console.error("[ZernioRepublish] ❌ Error in republishPostToZernioAction:", err);
+    return {
+      success: false,
+      error: err.message || "Gagal mempublikasikan ulang postingan ke Zernio.",
+    };
+  }
+}
+
+
 
 

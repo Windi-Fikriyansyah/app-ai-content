@@ -9,6 +9,8 @@ export const QUEUE_NAMES = {
   CAPTION_GENERATION: "caption-generation",
   IMAGE_GENERATION: "image-generation",
   CONTENT_REVIEW: "content-review",
+  ZERNIO_DISPATCH: "zernio-dispatch",
+  ZERNIO_WEBHOOK: "zernio-webhook",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -80,6 +82,21 @@ export interface ContentReviewJobData {
   context: BusinessContext;
 }
 
+export interface ZernioDispatchJobData {
+  postId: string;
+  workspaceId: string;
+  userId?: string;
+  action?: "create_scheduled_post" | "delete_post" | "publish_now";
+  scheduledAt?: string;
+}
+
+export interface ZernioWebhookJobData {
+  event: string;
+  zernioPostId: string;
+  payload: Record<string, any>;
+  receivedAt: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Queues Registry (Lazy Singleton)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -133,6 +150,14 @@ export const contentReviewQueue = {
   get: () => getOrCreateQueue<ContentReviewJobData>(QUEUE_NAMES.CONTENT_REVIEW),
 };
 
+export const zernioDispatchQueue = {
+  get: () => getOrCreateQueue<ZernioDispatchJobData>(QUEUE_NAMES.ZERNIO_DISPATCH),
+};
+
+export const zernioWebhookQueue = {
+  get: () => getOrCreateQueue<ZernioWebhookJobData>(QUEUE_NAMES.ZERNIO_WEBHOOK),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Enqueue Dispatchers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,6 +194,20 @@ export async function enqueueContentReview(data: ContentReviewJobData) {
   const queue = contentReviewQueue.get();
   const jobId = `review_${data.postId}_${Date.now()}`;
   const job = await queue.add("review-content", data, { jobId });
+  return { jobId: job.id, name: job.name };
+}
+
+export async function enqueueZernioDispatch(data: ZernioDispatchJobData) {
+  const queue = zernioDispatchQueue.get();
+  const jobId = `zernio_dispatch_${data.postId}_${Date.now()}`;
+  const job = await queue.add("dispatch-to-zernio", data, { jobId });
+  return { jobId: job.id, name: job.name };
+}
+
+export async function enqueueZernioWebhook(data: ZernioWebhookJobData) {
+  const queue = zernioWebhookQueue.get();
+  const jobId = `zernio_wh_${data.zernioPostId}_${Date.now()}`;
+  const job = await queue.add("process-webhook", data, { jobId });
   return { jobId: job.id, name: job.name };
 }
 

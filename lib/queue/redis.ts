@@ -14,6 +14,14 @@ export function getRedisOptions(): RedisOptions {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       lazyConnect: true,
+      connectTimeout: 20000,
+      family: 4, // Force IPv4 to prevent Windows getaddrinfo IPv6 lookup failures
+      keepAlive: 30000,
+      retryStrategy: (times: number) => {
+        // Backoff retry: 500ms, 1000ms, ... max 4000ms
+        const delay = Math.min(times * 500, 4000);
+        return delay;
+      },
       ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     };
   }
@@ -27,6 +35,10 @@ export function getRedisOptions(): RedisOptions {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
     lazyConnect: true,
+    connectTimeout: 20000,
+    family: 4,
+    keepAlive: 30000,
+    retryStrategy: (times: number) => Math.min(times * 500, 4000),
     ...(isTlsHost ? { tls: { rejectUnauthorized: false } } : {}),
   };
 }
@@ -40,20 +52,14 @@ export function getRedisConnection(): IORedis {
 
   const redisUrl = process.env.REDIS_URL;
   if (redisUrl) {
-    const isTls = redisUrl.startsWith("rediss://");
-    redisInstance = new IORedis(redisUrl, {
-      maxRetriesPerRequest: null,
-      enableReadyCheck: false,
-      lazyConnect: true,
-      ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
-    });
+    redisInstance = new IORedis(redisUrl, getRedisOptions());
   } else {
     redisInstance = new IORedis(getRedisOptions());
   }
 
   redisInstance.on("error", (err) => {
-    // Avoid unhandled crash on connection refused when Redis isn't running yet
-    console.warn("⚠️ [Redis Connection Warning]:", err.message);
+    // Avoid unhandled crash on transient network disconnects
+    console.warn("⚠️ [Redis Connection Interruption]:", err.message);
   });
 
   return redisInstance;

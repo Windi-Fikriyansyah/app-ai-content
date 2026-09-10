@@ -1,0 +1,571 @@
+"use client";
+
+import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
+import { getContentLibraryData, ContentLibraryItem } from "./actions";
+import { republishPostToZernioAction } from "../content-calendar/lazy-actions";
+
+type FilterTab = "all" | "published" | "scheduled" | "approval" | "drafts";
+
+export default function ContentLibraryPage() {
+  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<ContentLibraryItem[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    published: 0,
+    scheduled: 0,
+    readyForApproval: 0,
+    drafts: 0,
+  });
+  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFormat, setSelectedFormat] = useState<string>("All");
+  const [activePost, setActivePost] = useState<ContentLibraryItem | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isRepublishing, setIsRepublishing] = useState(false);
+  const [republishMsg, setRepublishMsg] = useState<string | null>(null);
+
+  const handleRepublish = async (postId: string) => {
+    setIsRepublishing(true);
+    setRepublishMsg("🔄 Menghapus post lama di Zernio dan menjadwalkan ulang...");
+    try {
+      const res = await republishPostToZernioAction(postId);
+      if (res.success) {
+        setRepublishMsg("✓ Berhasil dijadwalkan ulang ke Zernio!");
+        await loadData();
+        if (activePost) {
+          setActivePost((prev) => (prev ? { ...prev, status: "SCHEDULED" } : null));
+        }
+      } else {
+        setRepublishMsg(res.error || "Gagal menjadwalkan ulang.");
+      }
+    } catch (err: any) {
+      setRepublishMsg(err.message || "Gagal menjadwalkan ulang.");
+    } finally {
+      setIsRepublishing(false);
+    }
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await getContentLibraryData();
+      if (res.success) {
+        setPosts(res.posts);
+        setStats(res.stats);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Filter posts based on active tab, search query, and format
+  const filteredPosts = useMemo(() => {
+    return posts.filter((post) => {
+      // Tab filter
+      if (activeTab === "published" && post.status !== "PUBLISHED") return false;
+      if (activeTab === "scheduled" && post.status !== "SCHEDULED" && post.status !== "PUBLISHING") return false;
+      if (activeTab === "approval" && post.status !== "READY FOR APPROVAL" && post.status !== "REVIEW") return false;
+      if (activeTab === "drafts" && !["PLANNED", "DRAFT", "GENERATING", "NEEDS_REVISION"].includes(post.status)) return false;
+
+      // Format filter
+      if (selectedFormat !== "All" && post.format.toLowerCase() !== selectedFormat.toLowerCase()) return false;
+
+      // Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = post.title.toLowerCase().includes(q);
+        const matchTopic = post.topic.toLowerCase().includes(q);
+        const matchCaption = (post.caption || "").toLowerCase().includes(q);
+        const matchPillar = post.pillar.toLowerCase().includes(q);
+        if (!matchTitle && !matchTopic && !matchCaption && !matchPillar) return false;
+      }
+
+      return true;
+    });
+  }, [posts, activeTab, selectedFormat, searchQuery]);
+
+  const handleCopyCaption = (post: ContentLibraryItem) => {
+    const hashtagsStr = Array.isArray(post.hashtags) && post.hashtags.length > 0
+      ? `\n\n${post.hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}`
+      : "";
+    const text = `${post.caption || post.title}${hashtagsStr}`;
+    navigator.clipboard.writeText(text);
+    setCopiedId(post.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "PUBLISHED":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white shadow-xs">
+            <span className="material-symbols-outlined text-[12px]">verified</span>
+            <span>PUBLISHED</span>
+          </span>
+        );
+      case "PUBLISHING":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-600 text-white animate-pulse shadow-xs">
+            <span className="material-symbols-outlined text-[12px]">rocket_launch</span>
+            <span>PUBLISHING</span>
+          </span>
+        );
+      case "SCHEDULED":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-600 text-white shadow-xs">
+            <span className="material-symbols-outlined text-[12px]">schedule</span>
+            <span>SCHEDULED</span>
+          </span>
+        );
+      case "APPROVED":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+            <span>APPROVED</span>
+          </span>
+        );
+      case "READY FOR APPROVAL":
+      case "REVIEW":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <span>READY ✓</span>
+          </span>
+        );
+      case "NEEDS_REVISION":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+            <span>REVISI ⚠️</span>
+          </span>
+        );
+      case "GENERATING":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+            <span>GENERATING...</span>
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-secondary-container text-primary border border-primary/20">
+            <span>{status || "PLANNED"}</span>
+          </span>
+        );
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-16 animate-in fade-in duration-300">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-headline-md text-2xl font-bold text-on-surface tracking-tight flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-2xl">folder_open</span>
+            <span>Content Library</span>
+          </h1>
+          <p className="font-body-md text-sm text-outline mt-0.5">
+            Arsip seluruh postingan, aset visual, status jadwal Zernio, dan riwayat publikasi Instagram.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href="/content-calendar"
+            className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface text-on-surface font-semibold text-xs transition-colors flex items-center gap-1.5"
+          >
+            <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
+            <span>Buka Kalender</span>
+          </Link>
+          <button
+            type="button"
+            onClick={loadData}
+            className="p-2 rounded-xl border border-outline-variant/30 hover:bg-surface text-outline hover:text-on-surface transition-colors cursor-pointer"
+            title="Muat ulang data"
+          >
+            <span className={`material-symbols-outlined text-base ${loading ? "animate-spin" : ""}`}>
+              refresh
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 shadow-2xs">
+          <div className="flex items-center justify-between text-outline text-xs font-semibold">
+            <span>Total Konten</span>
+            <span className="material-symbols-outlined text-lg">auto_stories</span>
+          </div>
+          <p className="text-2xl font-bold font-headline text-on-surface mt-1">{stats.total}</p>
+          <span className="text-[11px] text-outline">Seluruh rencana & aset</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 shadow-2xs">
+          <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold">
+            <span>✓ Telah Terbit</span>
+            <span className="material-symbols-outlined text-lg text-emerald-600">verified</span>
+          </div>
+          <p className="text-2xl font-bold font-headline text-emerald-950 mt-1">{stats.published}</p>
+          <span className="text-[11px] text-emerald-800/90">Published di Instagram</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 shadow-2xs">
+          <div className="flex items-center justify-between text-blue-800 text-xs font-semibold">
+            <span>🕒 Terjadwal (Zernio)</span>
+            <span className="material-symbols-outlined text-lg text-blue-600">schedule</span>
+          </div>
+          <p className="text-2xl font-bold font-headline text-blue-950 mt-1">{stats.scheduled}</p>
+          <span className="text-[11px] text-blue-800/90">Scheduled via Zernio</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-2xs">
+          <div className="flex items-center justify-between text-amber-800 text-xs font-semibold">
+            <span>Siap Persetujuan</span>
+            <span className="material-symbols-outlined text-lg text-amber-600">rate_review</span>
+          </div>
+          <p className="text-2xl font-bold font-headline text-amber-950 mt-1">{stats.readyForApproval}</p>
+          <span className="text-[11px] text-amber-800/90">Menunggu Review User</span>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Search Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface-container-lowest p-2 rounded-2xl border border-outline-variant/30 shadow-2xs">
+        {/* Tabs */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
+          {[
+            { id: "all", label: "Semua", count: stats.total },
+            { id: "published", label: "✓ Published", count: stats.published },
+            { id: "scheduled", label: "🕒 Scheduled", count: stats.scheduled },
+            { id: "approval", label: "Siap Approve", count: stats.readyForApproval },
+            { id: "drafts", label: "Draft / Lainnya", count: stats.drafts },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as FilterTab)}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? "bg-primary text-on-primary shadow-xs"
+                  : "text-outline hover:text-on-surface hover:bg-surface-container"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  activeTab === tab.id ? "bg-white/25 text-white" : "bg-surface-container-high text-outline"
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Search & Format Selector */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 md:w-56">
+            <span className="material-symbols-outlined text-outline text-base absolute left-2.5 top-1/2 -translate-y-1/2">
+              search
+            </span>
+            <input
+              type="text"
+              placeholder="Cari topik atau judul..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-surface border border-outline-variant/30 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <select
+            value={selectedFormat}
+            onChange={(e) => setSelectedFormat(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl bg-surface border border-outline-variant/30 text-xs font-semibold text-on-surface focus:outline-none cursor-pointer"
+          >
+            <option value="All">Semua Format</option>
+            <option value="Feed">Feed</option>
+            <option value="Carousel">Carousel</option>
+            <option value="Reels">Reels</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Content Grid */}
+      {loading ? (
+        <div className="p-16 flex flex-col items-center justify-center text-outline gap-2 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
+          <span className="material-symbols-outlined animate-spin text-3xl text-primary">
+            progress_activity
+          </span>
+          <span className="text-xs font-semibold">Memuat aset Content Library...</span>
+        </div>
+      ) : filteredPosts.length === 0 ? (
+        <div className="p-16 flex flex-col items-center justify-center text-center bg-surface-container-lowest rounded-3xl border border-dashed border-outline-variant/40 space-y-2">
+          <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline">
+            <span className="material-symbols-outlined text-2xl">folder_off</span>
+          </div>
+          <h3 className="font-bold text-on-surface text-sm">Tidak ada konten ditemukan</h3>
+          <p className="text-xs text-outline max-w-sm">
+            {searchQuery
+              ? `Tidak ada postingan yang sesuai dengan kata kunci "${searchQuery}".`
+              : "Belum ada postingan pada kategori ini. Silakan buat rencana konten baru di Content Generation."}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredPosts.map((post) => (
+            <div
+              key={post.id}
+              onClick={() => setActivePost(post)}
+              className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-2xs hover:shadow-md transition-all flex flex-col overflow-hidden group cursor-pointer"
+            >
+              {/* Card Image Preview Banner */}
+              <div className="relative aspect-video w-full bg-slate-900 overflow-hidden flex items-center justify-center">
+                {post.media_url ? (
+                  <img
+                    src={post.media_url}
+                    alt={post.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-slate-500 gap-1 p-4 text-center">
+                    <span className="material-symbols-outlined text-3xl">image</span>
+                    <span className="text-[10px] font-mono">Visual Generated via Lazy Gen</span>
+                  </div>
+                )}
+
+                {/* Status Badge floating on image */}
+                <div className="absolute top-2.5 left-2.5">{getStatusBadge(post.status)}</div>
+
+                {/* Format Tag */}
+                <div className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/20">
+                  {post.format}
+                </div>
+              </div>
+
+              {/* Card Content Body */}
+              <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-outline font-mono">
+                    <span className="truncate max-w-[150px]">{post.pillar}</span>
+                    <span>
+                      {post.scheduled_date} · {post.scheduled_time}
+                    </span>
+                  </div>
+
+                  <h3 className="font-headline font-bold text-sm text-on-surface line-clamp-2 group-hover:text-primary transition-colors">
+                    {post.title}
+                  </h3>
+
+                  <p className="text-xs text-outline line-clamp-3 leading-relaxed">
+                    {post.caption || post.hook || post.topic}
+                  </p>
+                </div>
+
+                {/* Card Footer Actions */}
+                <div className="pt-3 border-t border-outline-variant/20 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-outline font-mono">
+                    {post.zernio_post_id ? (
+                      <span className="text-blue-600 font-bold">Zernio: {post.zernio_post_id.slice(-8)}</span>
+                    ) : (
+                      <span>Instagram Ready</span>
+                    )}
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyCaption(post);
+                      }}
+                      className="px-2.5 py-1 rounded-lg border border-outline-variant/30 hover:bg-surface text-[11px] font-semibold text-on-surface transition-colors flex items-center gap-1"
+                      title="Salin caption ke clipboard"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">
+                        {copiedId === post.id ? "check" : "content_copy"}
+                      </span>
+                      <span>{copiedId === post.id ? "Tersalin!" : "Copy"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePost(post);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-[11px] font-bold text-primary transition-colors"
+                    >
+                      Detail →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {activePost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-surface-container-lowest max-w-2xl w-full rounded-3xl border border-outline-variant/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-outline-variant/20 flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  {getStatusBadge(activePost.status)}
+                  <span className="px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 font-bold text-[10px] border border-pink-200">
+                    Instagram · {activePost.format}
+                  </span>
+                  <span className="text-xs text-outline font-mono">
+                    {activePost.scheduled_date} {activePost.scheduled_time} WIB
+                  </span>
+                </div>
+                <h3 className="font-headline-sm text-lg font-bold text-on-surface">
+                  {activePost.title}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActivePost(null)}
+                className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container cursor-pointer shrink-0"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Publishing & Zernio Status Alert */}
+              {activePost.status === "PUBLISHED" ? (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-emerald-600 text-xl">verified</span>
+                  <div>
+                    <p className="font-bold text-emerald-900">Konten Telah Terbit di Instagram!</p>
+                    <p className="text-[11px] text-emerald-800/90 mt-0.5">
+                      Diterbitkan via Zernio Publishing Infrastructure.
+                      {activePost.published_at && ` Waktu publikasi: ${new Date(activePost.published_at).toLocaleString("id-ID")}`}
+                    </p>
+                  </div>
+                </div>
+              ) : activePost.status === "SCHEDULED" ? (
+                <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-blue-600 text-xl">schedule</span>
+                  <div>
+                    <p className="font-bold text-blue-900">Terjadwal di Zernio</p>
+                    <p className="text-[11px] text-blue-800/90 mt-0.5">
+                      Konten akan otomatis di-publish ke Instagram pada {activePost.scheduled_date} {activePost.scheduled_time} WIB.
+                      {activePost.zernio_post_id && <span className="block font-mono text-[10px] mt-0.5">Zernio ID: {activePost.zernio_post_id}</span>}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Visual Media */}
+              {activePost.media_url ? (
+                <div className="space-y-1.5">
+                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
+                    Visual Instagram (Supabase Storage)
+                  </label>
+                  <div className="rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-72 w-full flex items-center justify-center">
+                    <img src={activePost.media_url} alt={activePost.title} className="w-full h-full object-cover" />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Caption */}
+              {activePost.caption && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
+                      Caption Instagram
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCaption(activePost)}
+                      className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-xs">
+                        {copiedId === activePost.id ? "check" : "content_copy"}
+                      </span>
+                      <span>{copiedId === activePost.id ? "Tersalin!" : "Salin Caption"}</span>
+                    </button>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/20 text-on-surface whitespace-pre-wrap leading-relaxed text-xs max-h-52 overflow-y-auto font-body">
+                    {activePost.caption}
+                  </div>
+                </div>
+              )}
+
+              {/* Hashtags */}
+              {activePost.hashtags && activePost.hashtags.length > 0 && (
+                <div className="space-y-1">
+                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">Hashtags</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activePost.hashtags.map((tag, idx) => (
+                      <span key={idx} className="px-2 py-0.5 rounded-md bg-surface-container text-primary font-mono text-[10px]">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-outline-variant/20 bg-surface flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] text-outline block">
+                  Pilar: <strong>{activePost.pillar}</strong> ({activePost.content_type})
+                </span>
+                {republishMsg && (
+                  <span className={`text-[11px] font-semibold mt-0.5 block ${republishMsg.startsWith("✓") ? "text-emerald-600" : "text-blue-600"}`}>
+                    {republishMsg}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {(activePost.status === "SCHEDULED" || activePost.status === "PUBLISHED" || Boolean(activePost.zernio_post_id)) && (
+                  <button
+                    type="button"
+                    onClick={() => handleRepublish(activePost.id)}
+                    disabled={isRepublishing}
+                    className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface-container text-on-surface font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Hapus jadwal/post lama di Zernio dan kirim ulang dengan data terbaru"
+                  >
+                    <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
+                      {isRepublishing ? "progress_activity" : "sync"}
+                    </span>
+                    <span>{isRepublishing ? "Menjadwalkan Ulang..." : "🔄 Publish Ulang"}</span>
+                  </button>
+                )}
+
+                <Link
+                  href="/content-calendar"
+                  className="px-3.5 py-2 rounded-xl border border-outline-variant/30 hover:bg-surface-container text-primary font-semibold text-xs transition-colors flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">calendar_month</span>
+                  <span>Buka di Kalender</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivePost(null);
+                    setRepublishMsg(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-xs hover:bg-primary-container transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

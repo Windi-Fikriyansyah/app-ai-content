@@ -9,6 +9,8 @@ import {
   approvePostAction,
   retrySinglePostImageAction,
   triggerPostRevisionAction,
+  simulateZernioWebhookAction,
+  republishPostToZernioAction,
 } from "./lazy-actions";
 import type { ContentPlanItem } from "@/lib/ai/planner";
 
@@ -68,6 +70,8 @@ export default function ContentCalendarPage() {
   const [isApproving, setIsApproving] = useState(false);
   const [isRetryingImage, setIsRetryingImage] = useState(false);
   const [isRevising, setIsRevising] = useState(false);
+  const [isSimulatingWebhook, setIsSimulatingWebhook] = useState(false);
+  const [isRepublishing, setIsRepublishing] = useState(false);
 
   const handleTriggerLazyGen = async (postId: string, customQuality?: "low" | "medium" | "high" | "auto") => {
     const chosenQuality = customQuality || modalQuality;
@@ -177,16 +181,40 @@ export default function ContentCalendarPage() {
 
   const handleApprovePost = async (postId: string) => {
     setIsApproving(true);
+    setLazyFeedback({
+      type: "info",
+      message: "🚀 Memproses persetujuan & mengirim jadwal postingan ke Zernio...",
+    });
+
     try {
       const res = await approvePostAction(postId);
       if (res.success) {
+        const nextStatus = res.status || "SCHEDULED";
         setPlans((prev) =>
-          prev.map((p) => (p.id === postId ? { ...p, status: "APPROVED" } : p))
+          prev.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  status: nextStatus,
+                  zernio_post_id: res.zernioPostId || p.zernio_post_id,
+                  scheduled_at: res.scheduledAt || p.scheduled_at,
+                }
+              : p
+          )
         );
-        setActivePost((prev) => (prev ? { ...prev, status: "APPROVED" } : null));
+        setActivePost((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: nextStatus,
+                zernio_post_id: res.zernioPostId || prev.zernio_post_id,
+                scheduled_at: res.scheduledAt || prev.scheduled_at,
+              }
+            : null
+        );
         setLazyFeedback({
           type: "success",
-          message: "✓ Konten telah disetujui (APPROVED) dan siap untuk dipublikasikan!",
+          message: "🎉 Konten telah disetujui & otomatis dijadwalkan di Zernio (SCHEDULED 🕒) untuk rilis ke Instagram!",
         });
       } else {
         setLazyFeedback({
@@ -201,6 +229,98 @@ export default function ContentCalendarPage() {
       });
     } finally {
       setIsApproving(false);
+    }
+  };
+
+  const handleSimulateWebhook = async (postId: string) => {
+    setIsSimulatingWebhook(true);
+    setLazyFeedback({
+      type: "info",
+      message: "📡 Mengirim webhook simulasi dari Zernio (event: published)...",
+    });
+
+    try {
+      const res = await simulateZernioWebhookAction(postId, "published");
+      if (res.success) {
+        setPlans((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, status: "PUBLISHED" }
+              : p
+          )
+        );
+        setActivePost((prev) =>
+          prev ? { ...prev, status: "PUBLISHED" } : null
+        );
+        setLazyFeedback({
+          type: "success",
+          message: "✓ Webhook Zernio berhasil diterima! Postingan sekarang berstatus PUBLISHED (Telah Terbit di Instagram).",
+        });
+      } else {
+        setLazyFeedback({
+          type: "error",
+          message: res.error || "Gagal memproses webhook simulasi.",
+        });
+      }
+    } catch (err: any) {
+      setLazyFeedback({
+        type: "error",
+        message: err.message || "Gagal mengirim webhook simulasi.",
+      });
+    } finally {
+      setIsSimulatingWebhook(false);
+    }
+  };
+
+  const handleRepublishPost = async (postId: string) => {
+    setIsRepublishing(true);
+    setLazyFeedback({
+      type: "info",
+      message: "🔄 Menghapus postingan lama di Zernio dan menjadwalkan ulang dengan data terbaru...",
+    });
+
+    try {
+      const res = await republishPostToZernioAction(postId);
+      if (res.success) {
+        setPlans((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  status: "SCHEDULED",
+                  zernio_post_id: res.zernioPostId || p.zernio_post_id,
+                  scheduled_at: res.scheduledAt || p.scheduled_at,
+                }
+              : p
+          )
+        );
+        setActivePost((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "SCHEDULED",
+                zernio_post_id: res.zernioPostId || prev.zernio_post_id,
+                scheduled_at: res.scheduledAt || prev.scheduled_at,
+              }
+            : null
+        );
+        setLazyFeedback({
+          type: "success",
+          message: "✓ Postingan lama di Zernio berhasil dihapus dan jadwal baru telah berhasil dikirim!",
+        });
+      } else {
+        setLazyFeedback({
+          type: "error",
+          message: res.error || "Gagal menjadwalkan ulang postingan ke Zernio.",
+        });
+      }
+    } catch (err: any) {
+      setLazyFeedback({
+        type: "error",
+        message: err.message || "Terjadi kesalahan saat mempublikasikan ulang.",
+      });
+    } finally {
+      setIsRepublishing(false);
     }
   };
 
@@ -802,7 +922,13 @@ export default function ContentCalendarPage() {
                             </span>
                             <span
                               className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                post.status === "APPROVED"
+                                post.status === "PUBLISHED"
+                                  ? "bg-emerald-600 text-white font-extrabold"
+                                  : post.status === "PUBLISHING"
+                                  ? "bg-purple-600 text-white font-extrabold animate-pulse"
+                                  : post.status === "SCHEDULED"
+                                  ? "bg-blue-600 text-white font-extrabold"
+                                  : post.status === "APPROVED"
                                   ? "bg-indigo-100 text-indigo-800"
                                   : post.status === "READY FOR APPROVAL" || post.status === "REVIEW"
                                   ? "bg-emerald-100 text-emerald-800"
@@ -813,7 +939,17 @@ export default function ContentCalendarPage() {
                                   : "opacity-75"
                               }`}
                             >
-                              {post.status === "READY FOR APPROVAL" ? "READY ✓" : post.status === "NEEDS_REVISION" ? "REVISI ⚠️" : post.status || "PLANNED"}
+                              {post.status === "PUBLISHED"
+                                ? "✓ PUBLISHED"
+                                : post.status === "PUBLISHING"
+                                ? "PUBLISHING 🚀"
+                                : post.status === "SCHEDULED"
+                                ? "SCHEDULED 🕒"
+                                : post.status === "READY FOR APPROVAL"
+                                ? "READY ✓"
+                                : post.status === "NEEDS_REVISION"
+                                ? "REVISI ⚠️"
+                                : post.status || "PLANNED"}
                             </span>
                           </div>
                           <p className="line-clamp-2 leading-tight font-semibold group-hover:underline">
@@ -899,7 +1035,13 @@ export default function ContentCalendarPage() {
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${
-                          plan.status === "APPROVED"
+                          plan.status === "PUBLISHED"
+                            ? "bg-emerald-600 text-white font-extrabold border-emerald-500"
+                            : plan.status === "PUBLISHING"
+                            ? "bg-purple-600 text-white font-extrabold border-purple-500 animate-pulse"
+                            : plan.status === "SCHEDULED"
+                            ? "bg-blue-600 text-white font-extrabold border-blue-500"
+                            : plan.status === "APPROVED"
                             ? "bg-indigo-100 text-indigo-800 border-indigo-200"
                             : plan.status === "READY FOR APPROVAL" || plan.status === "REVIEW"
                             ? "bg-emerald-100 text-emerald-800 border-emerald-200"
@@ -910,7 +1052,17 @@ export default function ContentCalendarPage() {
                             : "bg-secondary-container text-primary border-primary/20"
                         }`}
                       >
-                        {plan.status === "READY FOR APPROVAL" ? "READY FOR APPROVAL ✓" : plan.status === "NEEDS_REVISION" ? "PERLU REVISI ⚠️" : plan.status || "PLANNED"}
+                        {plan.status === "PUBLISHED"
+                          ? "✓ PUBLISHED"
+                          : plan.status === "PUBLISHING"
+                          ? "PUBLISHING 🚀"
+                          : plan.status === "SCHEDULED"
+                          ? "SCHEDULED 🕒"
+                          : plan.status === "READY FOR APPROVAL"
+                          ? "READY FOR APPROVAL ✓"
+                          : plan.status === "NEEDS_REVISION"
+                          ? "PERLU REVISI ⚠️"
+                          : plan.status || "PLANNED"}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
@@ -945,7 +1097,13 @@ export default function ContentCalendarPage() {
                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
                   <span
                     className={`px-2.5 py-0.5 rounded-md font-bold text-[10px] border ${
-                      activePost.status === "APPROVED"
+                      activePost.status === "PUBLISHED"
+                        ? "bg-emerald-600 text-white font-extrabold border-emerald-500"
+                        : activePost.status === "PUBLISHING"
+                        ? "bg-purple-600 text-white font-extrabold border-purple-500 animate-pulse"
+                        : activePost.status === "SCHEDULED"
+                        ? "bg-blue-600 text-white font-extrabold border-blue-500"
+                        : activePost.status === "APPROVED"
                         ? "bg-indigo-100 text-indigo-800 border-indigo-200"
                         : activePost.status === "READY FOR APPROVAL" || activePost.status === "REVIEW"
                         ? "bg-emerald-100 text-emerald-800 border-emerald-200"
@@ -956,7 +1114,15 @@ export default function ContentCalendarPage() {
                         : "bg-secondary-container text-primary border-primary/20"
                     }`}
                   >
-                    {activePost.status || "PLANNED"}
+                    {activePost.status === "PUBLISHED"
+                      ? "✓ PUBLISHED"
+                      : activePost.status === "PUBLISHING"
+                      ? "PUBLISHING 🚀"
+                      : activePost.status === "SCHEDULED"
+                      ? "SCHEDULED 🕒"
+                      : activePost.status === "NEEDS_REVISION"
+                      ? "PERLU REVISI ⚠️"
+                      : activePost.status || "PLANNED"}
                   </span>
                   <span className="px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 font-bold text-[10px] border border-pink-200">
                     Instagram · {activePost.format}
@@ -1189,6 +1355,88 @@ export default function ContentCalendarPage() {
                     </div>
                   );
                 })()
+              )}
+
+              {/* Zernio Scheduled Banner */}
+              {activePost.status === "SCHEDULED" && (
+                <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                  <div>
+                    <div className="font-bold flex items-center gap-1.5 text-blue-900 text-xs">
+                      <span className="material-symbols-outlined text-base text-blue-600">schedule</span>
+                      <span>Terjadwal Otomatis di Zernio (Instagram):</span>
+                    </div>
+                    <p className="text-[11px] text-blue-800 mt-0.5 leading-relaxed">
+                      Postingan akan otomatis terbit ke Instagram pada <strong>{activePost.scheduledDate} {activePost.scheduledTime} WIB</strong>.
+                      {activePost.zernio_post_id && (
+                        <span className="block font-mono text-[10px] text-blue-600/90 mt-0.5">
+                          Zernio ID: {activePost.zernio_post_id}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleRepublishPost(activePost.id!)}
+                      disabled={isRepublishing || isSimulatingWebhook}
+                      className="px-3 py-1.5 rounded-xl border border-blue-200 bg-white hover:bg-blue-100/50 text-blue-900 font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Hapus jadwal lama di Zernio dan kirim ulang dengan data terbaru"
+                    >
+                      <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
+                        {isRepublishing ? "progress_activity" : "refresh"}
+                      </span>
+                      <span>{isRepublishing ? "Menjadwalkan Ulang..." : "🔄 Publish Ulang"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSimulateWebhook(activePost.id!)}
+                      disabled={isSimulatingWebhook || isRepublishing}
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      title="Simulasikan Zernio mengirimkan webhook bahwa konten telah terbit"
+                    >
+                      <span className={`material-symbols-outlined text-sm ${isSimulatingWebhook ? "animate-spin" : ""}`}>
+                        {isSimulatingWebhook ? "progress_activity" : "send"}
+                      </span>
+                      <span>{isSimulatingWebhook ? "Menerbitkan..." : "⚡ Test Webhook Publish"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Zernio Published Banner */}
+              {activePost.status === "PUBLISHED" && (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-lg">check</span>
+                    </div>
+                    <div>
+                      <div className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
+                        <span>✓ Telah Terbit di Instagram</span>
+                        <span className="px-2 py-0.2 rounded-full bg-emerald-200/70 text-emerald-800 text-[10px] font-mono font-bold">
+                          PUBLISHED
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-800 mt-0.5">
+                        Konten telah berhasil dipublikasikan via infrastruktur Zernio.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRepublishPost(activePost.id!)}
+                    disabled={isRepublishing}
+                    className="px-3.5 py-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-100/60 text-emerald-900 font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                    title="Hapus postingan lama dan jadwalkan ulang ke Zernio"
+                  >
+                    <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
+                      {isRepublishing ? "progress_activity" : "refresh"}
+                    </span>
+                    <span>{isRepublishing ? "Menerbitkan Ulang..." : "🔄 Publish Ulang"}</span>
+                  </button>
+                </div>
               )}
 
               {/* Sub-status: Caption ✓ | Image ✓ */}
@@ -1566,9 +1814,49 @@ export default function ContentCalendarPage() {
                       className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <span className="material-symbols-outlined text-sm">check_circle</span>
-                      <span>{isApproving ? "Menyetujui..." : "✓ Approve Post"}</span>
+                      <span>{isApproving ? "Menyetujui..." : "✓ Approve & Jadwalkan Zernio"}</span>
                     </button>
                   </>
+                )}
+
+                {/* Button for SCHEDULED state */}
+                {activePost.status === "SCHEDULED" && (
+                  <button
+                    type="button"
+                    onClick={() => handleSimulateWebhook(activePost.id!)}
+                    disabled={isSimulatingWebhook || isRepublishing}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Simulasikan penerimaan webhook dari Zernio bahwa konten telah terbit ke Instagram"
+                  >
+                    <span className={`material-symbols-outlined text-sm ${isSimulatingWebhook ? "animate-spin" : ""}`}>
+                      {isSimulatingWebhook ? "progress_activity" : "send"}
+                    </span>
+                    <span>{isSimulatingWebhook ? "Menerbitkan..." : "⚡ Test Webhook Publish"}</span>
+                  </button>
+                )}
+
+                {/* Button for REPUBLISH (Publish Ulang) on SCHEDULED / PUBLISHED / FAILED */}
+                {(activePost.status === "SCHEDULED" || activePost.status === "PUBLISHED" || activePost.status === "FAILED" || Boolean(activePost.zernio_post_id)) && (
+                  <button
+                    type="button"
+                    onClick={() => handleRepublishPost(activePost.id!)}
+                    disabled={isRepublishing || isSimulatingWebhook}
+                    className="px-3.5 py-2 rounded-xl border border-outline-variant/40 bg-surface hover:bg-surface-container text-on-surface font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Hapus jadwal/post sebelumnya di Zernio dan kirim jadwal baru dengan media terbaru"
+                  >
+                    <span className={`material-symbols-outlined text-sm ${isRepublishing ? "animate-spin" : ""}`}>
+                      {isRepublishing ? "progress_activity" : "sync"}
+                    </span>
+                    <span>{isRepublishing ? "Menjadwalkan Ulang..." : "🔄 Publish Ulang (Zernio)"}</span>
+                  </button>
+                )}
+
+                {/* Display tag for PUBLISHED state */}
+                {activePost.status === "PUBLISHED" && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                    <span className="material-symbols-outlined text-sm text-emerald-600">verified</span>
+                    <span>✓ Published on Instagram</span>
+                  </div>
                 )}
 
                 <button
