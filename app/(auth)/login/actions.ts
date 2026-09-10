@@ -66,7 +66,19 @@ export async function loginWithGoogle() {
 
   const supabase = await createClient();
   const headersList = await headers();
-  const origin = headersList.get("origin") || "";
+
+  const forwardedHost = headersList.get("x-forwarded-host");
+  const forwardedProto = headersList.get("x-forwarded-proto") || "https";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
+
+  let origin = siteUrl?.replace(/\/$/, "");
+  if (!origin) {
+    if (forwardedHost) {
+      origin = `${forwardedProto}://${forwardedHost}`;
+    } else {
+      origin = headersList.get("origin") || "";
+    }
+  }
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
