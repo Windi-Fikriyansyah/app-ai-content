@@ -16,6 +16,19 @@ import { z } from "zod/v4";
 // INTERFACES
 // ═══════════════════════════════════════════════════════════════════
 
+export interface AIReviewCheck {
+  label: string;
+  passed: boolean;
+}
+
+export interface AIReviewResult {
+  score: number;
+  status: "READY FOR APPROVAL" | "NEEDS_REVISION";
+  checks: AIReviewCheck[];
+  issues?: string[];
+  suggestions?: string[];
+}
+
 export interface ContentPlanItem {
   id?: string;
   dayIndex: number;
@@ -32,13 +45,23 @@ export interface ContentPlanItem {
   visual_direction: string;
   format: "Feed" | "Carousel" | "Reels" | "Story";
   platform: "instagram";
-  status: "PLANNED";
+  status: "PLANNED" | "GENERATING" | "READY FOR APPROVAL" | "REVIEW" | "APPROVED" | "SCHEDULED" | "PUBLISHED" | "FAILED" | string;
   // Enhanced fields from temuan.md
   angle?: string;
   audience_stage?: string;
   product_reference?: string | null;
   content_goal?: string;
   data_sources?: string[];
+  // Lazy Generation & Reviewer fields
+  caption?: string | null;
+  hashtags?: string[] | null;
+  media_url?: string | null;
+  ai_score?: number | null;
+  ai_review?: AIReviewResult | null;
+  caption_status?: string | null;
+  image_status?: string | null;
+  generation_error?: string | null;
+  generated_at?: string | null;
 }
 
 export interface BusinessContext {
@@ -69,6 +92,7 @@ export interface BusinessContext {
     language?: string;
     emojiUsage?: string;
   };
+  imageQuality?: "low" | "medium" | "high" | "auto";
   // Enhanced context fields
   testimonials?: Array<{
     customerName?: string;

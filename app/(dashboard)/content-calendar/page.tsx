@@ -3,6 +3,13 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { get30DayPlanStatus } from "../ai-agent/content-generation/planner-actions";
+import {
+  enqueueSinglePostLazyGenAction,
+  getSinglePostAction,
+  approvePostAction,
+  retrySinglePostImageAction,
+  triggerPostRevisionAction,
+} from "./lazy-actions";
 import type { ContentPlanItem } from "@/lib/ai/planner";
 
 const WEEKDAYS = [
@@ -52,6 +59,360 @@ export default function ContentCalendarPage() {
 
   // Modal Detail State for Lazy Generation Post Brief
   const [activePost, setActivePost] = useState<ContentPlanItem | null>(null);
+  const [isGeneratingLazy, setIsGeneratingLazy] = useState(false);
+  const [modalQuality, setModalQuality] = useState<"low" | "medium" | "high" | "auto">("medium");
+  const [lazyFeedback, setLazyFeedback] = useState<{
+    type: "success" | "error" | "info" | null;
+    message: string;
+  }>({ type: null, message: "" });
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRetryingImage, setIsRetryingImage] = useState(false);
+  const [isRevising, setIsRevising] = useState(false);
+
+  const handleTriggerLazyGen = async (postId: string, customQuality?: "low" | "medium" | "high" | "auto") => {
+    const chosenQuality = customQuality || modalQuality;
+    setIsGeneratingLazy(true);
+    setLazyFeedback({
+      type: "info",
+      message: `🚀 Memasukkan job ke Queue Redis (Quality: ${chosenQuality})...`,
+    });
+
+    try {
+      // Enqueue job into BullMQ Redis Queue
+      const enqueueRes = await enqueueSinglePostLazyGenAction(postId, chosenQuality);
+
+      if (!enqueueRes.success) {
+        setLazyFeedback({
+          type: "error",
+          message: enqueueRes.error || "Gagal memasukkan pekerjaan ke antrian.",
+        });
+        setIsGeneratingLazy(false);
+        return;
+      }
+
+      // Mark post as GENERATING immediately in local UI state
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, status: "GENERATING", caption_status: "GENERATING", image_status: "GENERATING" }
+            : p
+        )
+      );
+      setActivePost((prev) =>
+        prev && prev.id === postId
+          ? { ...prev, status: "GENERATING", caption_status: "GENERATING", image_status: "GENERATING" }
+          : prev
+      );
+
+      if (enqueueRes.queued) {
+        setLazyFeedback({
+          type: "info",
+          message: `⚡ Job dimasukkan ke BullMQ Queue (#${enqueueRes.jobId?.slice(-12)}). Worker terminal sedang meracik Caption & Visual...`,
+        });
+
+        // Poll every 2.5s for worker completion
+        const startTime = Date.now();
+        const pollTimer = setInterval(async () => {
+          try {
+            const pollRes = await getSinglePostAction(postId);
+            if (pollRes.success && pollRes.post) {
+              const currentStatus = pollRes.post.status;
+              if (currentStatus !== "GENERATING" && currentStatus !== "PLANNED") {
+                clearInterval(pollTimer);
+                setPlans((prev) =>
+                  prev.map((p) => (p.id === postId ? { ...p, ...pollRes.post } : p))
+                );
+                setActivePost((prev) => (prev ? { ...prev, ...pollRes.post } : null));
+                setIsGeneratingLazy(false);
+
+                if (currentStatus === "READY FOR APPROVAL" || currentStatus === "REVIEW") {
+                  setLazyFeedback({
+                    type: "success",
+                    message: "✨ Selesai! Worker BullMQ telah menyelesaikan Caption, Visual, dan AI Review!",
+                  });
+                } else {
+                  setLazyFeedback({
+                    type: "error",
+                    message: pollRes.post.generation_error || "Worker gagal memproses post.",
+                  });
+                }
+              }
+            }
+
+            if (Date.now() - startTime > 75000) {
+              clearInterval(pollTimer);
+              setIsGeneratingLazy(false);
+              setLazyFeedback({
+                type: "info",
+                message: "⏳ Worker masih memproses di latar belakang. Silakan refresh sebentar lagi.",
+              });
+            }
+          } catch {
+            // keep polling
+          }
+        }, 2500);
+      } else {
+        // Fallback if Redis was not running and direct generation occurred
+        const fallbackRes = await getSinglePostAction(postId);
+        if (fallbackRes.success && fallbackRes.post) {
+          setPlans((prev) =>
+            prev.map((p) => (p.id === postId ? { ...p, ...fallbackRes.post } : p))
+          );
+          setActivePost((prev) => (prev ? { ...prev, ...fallbackRes.post } : null));
+        }
+        setIsGeneratingLazy(false);
+        setLazyFeedback({
+          type: "success",
+          message: "✨ Selesai diproses via Direct Mode.",
+        });
+      }
+    } catch (err: any) {
+      setIsGeneratingLazy(false);
+      setLazyFeedback({
+        type: "error",
+        message: err.message || "Gagal memproses Lazy Generation.",
+      });
+    }
+  };
+
+  const handleApprovePost = async (postId: string) => {
+    setIsApproving(true);
+    try {
+      const res = await approvePostAction(postId);
+      if (res.success) {
+        setPlans((prev) =>
+          prev.map((p) => (p.id === postId ? { ...p, status: "APPROVED" } : p))
+        );
+        setActivePost((prev) => (prev ? { ...prev, status: "APPROVED" } : null));
+        setLazyFeedback({
+          type: "success",
+          message: "✓ Konten telah disetujui (APPROVED) dan siap untuk dipublikasikan!",
+        });
+      } else {
+        setLazyFeedback({
+          type: "error",
+          message: res.error || "Gagal menyetujui konten.",
+        });
+      }
+    } catch (err: any) {
+      setLazyFeedback({
+        type: "error",
+        message: err.message || "Gagal menyetujui konten.",
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleRetryImage = async (postId: string, customQuality?: "low" | "medium" | "high" | "auto") => {
+    const chosenQuality = customQuality || modalQuality;
+    setIsRetryingImage(true);
+    setLazyFeedback({
+      type: "info",
+      message: `🎨 Mengirim permintaan pembuatan ulang gambar (Quality: ${chosenQuality})...`,
+    });
+
+    // Mark image as GENERATING in UI state immediately
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? { ...p, image_status: "GENERATING", generation_error: null }
+          : p
+      )
+    );
+    setActivePost((prev) =>
+      prev && prev.id === postId
+        ? { ...prev, image_status: "GENERATING", generation_error: null }
+        : prev
+    );
+
+    try {
+      const res = await retrySinglePostImageAction(postId, chosenQuality);
+
+      if (!res.success) {
+        setLazyFeedback({
+          type: "error",
+          message: res.error || "Gagal me-request ulang gambar.",
+        });
+        setIsRetryingImage(false);
+        return;
+      }
+
+      if (res.queued) {
+        setLazyFeedback({
+          type: "info",
+          message: `⚡ Job gambar dimasukkan ke antrian BullMQ (#${res.jobId?.slice(-12)}). Sedang diproses oleh Image Agent...`,
+        });
+
+        // Poll every 2.5s for worker completion
+        const startTime = Date.now();
+        const pollTimer = setInterval(async () => {
+          try {
+            const pollRes = await getSinglePostAction(postId);
+            if (pollRes.success && pollRes.post) {
+              const imgStatus = pollRes.post.image_status;
+              if (imgStatus !== "GENERATING") {
+                clearInterval(pollTimer);
+                setPlans((prev) =>
+                  prev.map((p) => (p.id === postId ? { ...p, ...pollRes.post } : p))
+                );
+                setActivePost((prev) => (prev ? { ...prev, ...pollRes.post } : null));
+                setIsRetryingImage(false);
+
+                if (imgStatus === "COMPLETED") {
+                  setLazyFeedback({
+                    type: "success",
+                    message: "✨ Berhasil! Gambar baru telah berhasil dibuat dan disimpan.",
+                  });
+                } else {
+                  setLazyFeedback({
+                    type: "error",
+                    message: pollRes.post.generation_error || "Pembuatan ulang gambar gagal.",
+                  });
+                }
+              }
+            }
+
+            if (Date.now() - startTime > 75000) {
+              clearInterval(pollTimer);
+              setIsRetryingImage(false);
+              setLazyFeedback({
+                type: "info",
+                message: "⏳ Image worker masih memproses di latar belakang. Silakan refresh sebentar lagi.",
+              });
+            }
+          } catch {
+            // keep polling
+          }
+        }, 2500);
+      } else {
+        // Direct execution fallback
+        const pollRes = await getSinglePostAction(postId);
+        if (pollRes.success && pollRes.post) {
+          setPlans((prev) =>
+            prev.map((p) => (p.id === postId ? { ...p, ...pollRes.post } : p))
+          );
+          setActivePost((prev) => (prev ? { ...prev, ...pollRes.post } : null));
+        }
+        setIsRetryingImage(false);
+        setLazyFeedback({
+          type: "success",
+          message: "✨ Gambar baru berhasil dibuat!",
+        });
+      }
+    } catch (err: any) {
+      setIsRetryingImage(false);
+      setLazyFeedback({
+        type: "error",
+        message: err.message || "Terjadi kesalahan saat memproses gambar.",
+      });
+    }
+  };
+
+  const handleTriggerRevision = async (postId: string, customNotes?: string) => {
+    setIsRevising(true);
+    setLazyFeedback({
+      type: "info",
+      message: "🤖 Menjalankan revisi konten dengan AI berdasarkan poin review...",
+    });
+
+    // Mark as GENERATING in UI state immediately
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? { ...p, status: "GENERATING", caption_status: "GENERATING" }
+          : p
+      )
+    );
+    setActivePost((prev) =>
+      prev && prev.id === postId
+        ? { ...prev, status: "GENERATING", caption_status: "GENERATING" }
+        : prev
+    );
+
+    try {
+      const res = await triggerPostRevisionAction(postId, customNotes, modalQuality);
+
+      if (res.queued) {
+        setLazyFeedback({
+          type: "info",
+          message: `⚡ Permintaan revisi dikirim ke antrian BullMQ (#${res.jobId?.slice(-12)}). Worker sedang merevisi konten...`,
+        });
+
+        // Poll every 2.5s for worker completion
+        const startTime = Date.now();
+        const pollTimer = setInterval(async () => {
+          try {
+            const pollRes = await getSinglePostAction(postId);
+            if (pollRes.success && pollRes.post) {
+              const postStatus = pollRes.post.status;
+              if (postStatus !== "GENERATING") {
+                clearInterval(pollTimer);
+                setPlans((prev) =>
+                  prev.map((p) => (p.id === postId ? { ...p, ...pollRes.post } : p))
+                );
+                setActivePost((prev) => (prev ? { ...prev, ...pollRes.post } : null));
+                setIsRevising(false);
+
+                if (postStatus === "READY FOR APPROVAL" || (pollRes.post.ai_score && pollRes.post.ai_score >= 80)) {
+                  setLazyFeedback({
+                    type: "success",
+                    message: `✨ Revisi berhasil! Skor meningkat menjadi ${pollRes.post.ai_score}/100 dan siap disetujui (READY FOR APPROVAL).`,
+                  });
+                } else {
+                  setLazyFeedback({
+                    type: "info",
+                    message: `✓ Revisi selesai (Skor: ${pollRes.post.ai_score}/100). Periksa kembali poin saran review.`,
+                  });
+                }
+              }
+            }
+
+            if (Date.now() - startTime > 75000) {
+              clearInterval(pollTimer);
+              setIsRevising(false);
+              setLazyFeedback({
+                type: "info",
+                message: "⏳ Worker masih memproses revisi di latar belakang. Silakan refresh sebentar lagi.",
+              });
+            }
+          } catch {
+            // keep polling
+          }
+        }, 2500);
+      } else if (res.success && res.post) {
+        setPlans((prev) =>
+          prev.map((p) => (p.id === postId ? { ...p, ...res.post } : p))
+        );
+        setActivePost((prev) => (prev ? { ...prev, ...res.post } : null));
+        setIsRevising(false);
+
+        if (res.post.status === "READY FOR APPROVAL" || (res.post.ai_score && res.post.ai_score >= 80)) {
+          setLazyFeedback({
+            type: "success",
+            message: `✨ Revisi berhasil! Skor meningkat menjadi ${res.post.ai_score}/100 dan siap disetujui (READY FOR APPROVAL).`,
+          });
+        } else {
+          setLazyFeedback({
+            type: "info",
+            message: `✓ Revisi selesai (Skor: ${res.post.ai_score}/100). Periksa kembali poin saran review.`,
+          });
+        }
+      } else {
+        setIsRevising(false);
+        setLazyFeedback({
+          type: "error",
+          message: res.error || "Gagal melakukan revisi konten.",
+        });
+      }
+    } catch (err: any) {
+      setIsRevising(false);
+      setLazyFeedback({
+        type: "error",
+        message: err.message || "Terjadi kesalahan saat merevisi konten.",
+      });
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -439,8 +800,20 @@ export default function ContentCalendarPage() {
                             <span className="font-bold tracking-tight text-[10px] uppercase">
                               [POST]
                             </span>
-                            <span className="text-[9px] font-semibold opacity-75">
-                              PLANNED
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                post.status === "APPROVED"
+                                  ? "bg-indigo-100 text-indigo-800"
+                                  : post.status === "READY FOR APPROVAL" || post.status === "REVIEW"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : post.status === "NEEDS_REVISION"
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300 font-extrabold"
+                                  : post.status === "GENERATING"
+                                  ? "bg-amber-100 text-amber-800 animate-pulse"
+                                  : "opacity-75"
+                              }`}
+                            >
+                              {post.status === "READY FOR APPROVAL" ? "READY ✓" : post.status === "NEEDS_REVISION" ? "REVISI ⚠️" : post.status || "PLANNED"}
                             </span>
                           </div>
                           <p className="line-clamp-2 leading-tight font-semibold group-hover:underline">
@@ -524,8 +897,20 @@ export default function ContentCalendarPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded-md bg-secondary-container text-primary font-bold text-[10px] border border-primary/20">
-                        {plan.status || "PLANNED"}
+                      <span
+                        className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${
+                          plan.status === "APPROVED"
+                            ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                            : plan.status === "READY FOR APPROVAL" || plan.status === "REVIEW"
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            : plan.status === "NEEDS_REVISION"
+                            ? "bg-amber-100 text-amber-900 border-amber-300 font-extrabold"
+                            : plan.status === "GENERATING"
+                            ? "bg-amber-100 text-amber-800 border-amber-200 animate-pulse"
+                            : "bg-secondary-container text-primary border-primary/20"
+                        }`}
+                      >
+                        {plan.status === "READY FOR APPROVAL" ? "READY FOR APPROVAL ✓" : plan.status === "NEEDS_REVISION" ? "PERLU REVISI ⚠️" : plan.status || "PLANNED"}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
@@ -549,19 +934,31 @@ export default function ContentCalendarPage() {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          POST DETAIL MODAL (LAZY GENERATION CONTENT BRIEF)
+          POST DETAIL MODAL (LAZY GENERATION & AI REVIEWER)
           ═══════════════════════════════════════════════════════════════════ */}
       {activePost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-surface-container-lowest max-w-xl w-full rounded-3xl border border-outline-variant/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-surface-container-lowest max-w-2xl w-full rounded-3xl border border-outline-variant/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-space-lg border-b border-outline-variant/20 bg-gradient-to-r from-surface-container-low/50 to-surface-container-lowest flex items-start justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="px-2 py-0.5 rounded-md bg-secondary-container text-primary font-bold text-[10px]">
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-md font-bold text-[10px] border ${
+                      activePost.status === "APPROVED"
+                        ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                        : activePost.status === "READY FOR APPROVAL" || activePost.status === "REVIEW"
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                        : activePost.status === "NEEDS_REVISION"
+                        ? "bg-amber-100 text-amber-900 border-amber-300 font-extrabold"
+                        : activePost.status === "GENERATING"
+                        ? "bg-amber-100 text-amber-800 border-amber-200 animate-pulse"
+                        : "bg-secondary-container text-primary border-primary/20"
+                    }`}
+                  >
                     {activePost.status || "PLANNED"}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 font-bold text-[10px]">
+                  <span className="px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 font-bold text-[10px] border border-pink-200">
                     Instagram · {activePost.format}
                   </span>
                   <span className="text-xs text-outline font-mono">
@@ -575,7 +972,10 @@ export default function ContentCalendarPage() {
 
               <button
                 type="button"
-                onClick={() => setActivePost(null)}
+                onClick={() => {
+                  setActivePost(null);
+                  setLazyFeedback({ type: null, message: "" });
+                }}
                 className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-base">close</span>
@@ -584,75 +984,604 @@ export default function ContentCalendarPage() {
 
             {/* Modal Body */}
             <div className="p-space-lg overflow-y-auto space-y-4 text-xs">
-              {/* Lazy Generation Banner */}
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-amber-600 text-base mt-0.5 shrink-0">
-                  info
-                </span>
-                <p className="leading-relaxed">
-                  <strong>Prinsip Lazy Generation:</strong> Belum ada image atau caption final. AI Agent akan meracik visual dan caption Instagram lengkap secara otomatis pada <strong>H-2 sebelum jadwal posting</strong>.
-                </p>
-              </div>
-
-              {/* Hook */}
-              <div className="space-y-1">
-                <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
-                  Opening Hook
-                </label>
-                <div className="p-3 rounded-xl bg-surface border border-outline-variant/20 text-on-surface font-medium italic">
-                  &ldquo;{activePost.hook}&rdquo;
+              {/* Feedback Alert if any */}
+              {lazyFeedback.message && (
+                <div
+                  className={`p-3 rounded-xl border flex items-center gap-2.5 animate-in fade-in duration-150 ${
+                    lazyFeedback.type === "success"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : lazyFeedback.type === "info"
+                      ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+                      : "bg-red-50 border-red-200 text-red-900"
+                  }`}
+                >
+                  <span
+                    className={`material-symbols-outlined text-base ${
+                      lazyFeedback.type === "success"
+                        ? "text-emerald-600"
+                        : lazyFeedback.type === "info"
+                        ? "text-indigo-600 animate-spin"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {lazyFeedback.type === "success"
+                      ? "check_circle"
+                      : lazyFeedback.type === "info"
+                      ? "progress_activity"
+                      : "error"}
+                  </span>
+                  <span className="font-medium flex-1">{lazyFeedback.message}</span>
                 </div>
-              </div>
+              )}
 
-              {/* Key Points */}
-              <div className="space-y-1">
-                <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
-                  Poin Kunci Konten
-                </label>
-                <ul className="space-y-1 p-3 rounded-xl bg-surface border border-outline-variant/20 text-on-surface-variant list-disc list-inside">
-                  {activePost.key_points && activePost.key_points.length > 0 ? (
-                    activePost.key_points.map((pt, i) => <li key={i}>{pt}</li>)
-                  ) : (
-                    <li>{activePost.topic}</li>
-                  )}
-                </ul>
-              </div>
-
-              {/* Call to Action */}
-              <div className="space-y-1">
-                <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
-                  Call to Action (CTA)
-                </label>
-                <div className="p-3 rounded-xl bg-surface border border-outline-variant/20 text-primary font-semibold">
-                  {activePost.cta}
-                </div>
-              </div>
-
-              {/* Visual Direction */}
-              {activePost.visual_direction && (
-                <div className="space-y-1">
-                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
-                    Arah Visual AI
-                  </label>
-                  <div className="p-3 rounded-xl bg-surface border border-outline-variant/20 text-on-surface-variant">
-                    {activePost.visual_direction}
+              {/* GENERATING LOADING CARD */}
+              {isGeneratingLazy && (
+                <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-300/40 text-amber-950 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
+                    <span className="material-symbols-outlined text-base animate-spin text-amber-600">
+                      progress_activity
+                    </span>
+                    <span>Menjalankan Lazy Generation (Parallel Worker)...</span>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center gap-2 text-amber-800">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      <span><strong>AI Caption Agent</strong> (GPT-5.6 Luna): Menulis Hook, Caption, CTA & Hashtags...</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-amber-800">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                      <span><strong>AI Image Agent</strong> (GPT Image): Merender visual Instagram sesuai Brand Kit...</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-amber-800">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span><strong>AI Reviewer</strong>: Menilai kelayakan brand, akurasi, dan skor konten...</span>
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* ═════════════════════════════════════════════════════════════
+                  AI REVIEWER BOX (When Post has Caption & Image / Reviewed)
+                  ═════════════════════════════════════════════════════════════ */}
+              {/* ═════════════════════════════════════════════════════════════
+                  AI REVIEWER BOX (When Post has Caption & Image / Reviewed)
+                  ═════════════════════════════════════════════════════════════ */}
+              {(activePost.status === "READY FOR APPROVAL" ||
+                activePost.status === "APPROVED" ||
+                activePost.status === "NEEDS_REVISION" ||
+                Boolean(activePost.caption || activePost.ai_review || activePost.ai_score)) && (
+                (() => {
+                  const currentScore = activePost.ai_review?.score || activePost.ai_score || 0;
+                  const isBelowThreshold = currentScore < 80 || activePost.status === "NEEDS_REVISION" || activePost.ai_review?.status === "NEEDS_REVISION";
+
+                  return (
+                    <div
+                      className={`p-4 rounded-2xl bg-surface border shadow-xs space-y-3 transition-all ${
+                        isBelowThreshold
+                          ? "border-amber-300/90 bg-gradient-to-br from-amber-500/10 via-surface to-surface"
+                          : "border-emerald-200/80 bg-gradient-to-br from-emerald-500/5 via-surface to-surface"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between border-b border-outline-variant/20 pb-2.5 gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`material-symbols-outlined text-lg ${
+                              isBelowThreshold ? "text-amber-600" : "text-emerald-600"
+                            }`}
+                          >
+                            {isBelowThreshold ? "warning" : "verified"}
+                          </span>
+                          <span className="font-bold text-on-surface text-sm">AI Review & Quality Score</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isBelowThreshold && (
+                            <span className="text-[10px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                              Di Bawah Ambang Batas (Min: 80)
+                            </span>
+                          )}
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-white font-mono font-bold text-xs shadow-2xs ${
+                              isBelowThreshold ? "bg-amber-600" : "bg-emerald-600"
+                            }`}
+                          >
+                            {currentScore || 70}/100
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Reviewer Checklist items */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {(
+                          activePost.ai_review?.checks || [
+                            { label: "Brand aligned", passed: true },
+                            { label: "Good hook", passed: true },
+                            { label: "Clear CTA", passed: true },
+                            { label: "Suitable visual", passed: Boolean(activePost.media_url) },
+                          ]
+                        ).map((chk: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-1.5 font-medium text-on-surface">
+                            <span
+                              className={`material-symbols-outlined text-sm ${
+                                chk.passed ? "text-emerald-600 font-bold" : "text-amber-500"
+                              }`}
+                            >
+                              {chk.passed ? "check" : "close"}
+                            </span>
+                            <span>{chk.label}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Detected Issues if below threshold */}
+                      {activePost.ai_review?.issues && activePost.ai_review.issues.length > 0 && (
+                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-300/80 text-amber-950 text-xs space-y-1">
+                          <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                            <span className="material-symbols-outlined text-sm text-amber-600">report_problem</span>
+                            <span>Catatan Evaluasi (Perlu Direvisi):</span>
+                          </div>
+                          <ul className="list-disc list-inside space-y-0.5 text-amber-900/90 text-[11px]">
+                            {activePost.ai_review.issues.map((issue, idx) => (
+                              <li key={idx}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Suggestions if any */}
+                      {activePost.ai_review?.suggestions && activePost.ai_review.suggestions.length > 0 && (
+                        <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-200 text-blue-950 text-xs space-y-1">
+                          <div className="font-bold flex items-center gap-1.5 text-blue-900">
+                            <span className="material-symbols-outlined text-sm text-blue-600">tips_and_updates</span>
+                            <span>Rekomendasi Perbaikan AI:</span>
+                          </div>
+                          <ul className="list-disc list-inside space-y-0.5 text-blue-900/90 text-[11px]">
+                            {activePost.ai_review.suggestions.map((sug, idx) => (
+                              <li key={idx}>{sug}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* REVISION ACTION BUTTON: TAMPIL JIKA DI BAWAH AMBANG BATAS */}
+                      {isBelowThreshold && (
+                        <div className="pt-2.5 border-t border-outline-variant/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                          <div className="text-[11px] text-amber-800 font-medium flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-base text-amber-600">auto_fix_high</span>
+                            <span>AI dapat merevisi hook, isi, dan CTA agar lolos ambang batas.</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerRevision(activePost.id!)}
+                            disabled={isRevising || isGeneratingLazy}
+                            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            <span className={`material-symbols-outlined text-sm ${isRevising ? "animate-spin" : ""}`}>
+                              {isRevising ? "progress_activity" : "auto_fix_high"}
+                            </span>
+                            <span>{isRevising ? "Sedang Merevisi..." : "🤖 Revisi Konten (AI)"}</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Status Banner */}
+                      <div className="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-xs">
+                        <span className="text-outline font-medium">Status Konten:</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-md font-bold text-[10px] tracking-wide uppercase ${
+                            activePost.status === "APPROVED"
+                              ? "bg-indigo-600 text-white"
+                              : activePost.status === "READY FOR APPROVAL"
+                              ? "bg-emerald-600 text-white"
+                              : activePost.status === "NEEDS_REVISION"
+                              ? "bg-amber-600 text-white"
+                              : "bg-slate-600 text-white"
+                          }`}
+                        >
+                          {activePost.status === "APPROVED"
+                            ? "APPROVED (SIAP TERBIT)"
+                            : activePost.status === "READY FOR APPROVAL"
+                            ? "READY FOR APPROVAL ✓"
+                            : activePost.status === "NEEDS_REVISION"
+                            ? "PERLU REVISI ⚠️"
+                            : activePost.status || "DRAFT"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+
+              {/* Sub-status: Caption ✓ | Image ✓ */}
+              {(activePost.caption || activePost.media_url) && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 ${
+                      activePost.caption
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xs">
+                      {activePost.caption ? "check_circle" : "hourglass_empty"}
+                    </span>
+                    <span>Caption {activePost.caption ? "✓" : "..."}</span>
+                  </span>
+
+                  <span
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 ${
+                      activePost.media_url
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : activePost.image_status === "FAILED"
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : activePost.image_status === "GENERATING"
+                        ? "bg-amber-50 text-amber-700 border border-amber-200"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xs">
+                      {activePost.media_url
+                        ? "check_circle"
+                        : activePost.image_status === "FAILED"
+                        ? "error"
+                        : activePost.image_status === "GENERATING"
+                        ? "progress_activity"
+                        : "hourglass_empty"}
+                    </span>
+                    <span>
+                      Image{" "}
+                      {activePost.media_url
+                        ? "✓"
+                        : activePost.image_status === "FAILED"
+                        ? "Gagal"
+                        : activePost.image_status === "GENERATING"
+                        ? "Sedang Dibuat..."
+                        : "..."}
+                    </span>
+                  </span>
+
+                  {/* Refresh Image Button directly in Sub-Status */}
+                  {(activePost.image_status === "FAILED" || (!activePost.media_url && Boolean(activePost.caption))) && (
+                    <button
+                      type="button"
+                      onClick={() => handleRetryImage(activePost.id!)}
+                      disabled={isRetryingImage || isGeneratingLazy}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      title="Request ulang pembuatan gambar"
+                    >
+                      <span className={`material-symbols-outlined text-xs ${isRetryingImage ? "animate-spin" : ""}`}>
+                        refresh
+                      </span>
+                      <span>{isRetryingImage ? "Memproses..." : "Request Ulang Image"}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Generation Error Banner with Retry Button */}
+              {(activePost.generation_error || activePost.image_status === "FAILED") && (
+                <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-200 text-red-950 text-xs space-y-2 animate-in fade-in duration-150">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-bold flex items-center gap-1.5 text-red-800">
+                      <span className="material-symbols-outlined text-base text-red-600">error</span>
+                      <span>Generasi Gambar Gagal:</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRetryImage(activePost.id!)}
+                      disabled={isRetryingImage || isGeneratingLazy}
+                      className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      <span className={`material-symbols-outlined text-sm ${isRetryingImage ? "animate-spin" : ""}`}>
+                        refresh
+                      </span>
+                      <span>{isRetryingImage ? "Sedang Memproses..." : "Request Ulang Image"}</span>
+                    </button>
+                  </div>
+                  {activePost.generation_error && (
+                    <p className="text-[11px] leading-relaxed text-red-900 font-mono break-all bg-white/70 p-2.5 rounded-xl border border-red-200/60">
+                      {activePost.generation_error}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Visual Image Rendered by GPT Image */}
+              {activePost.media_url ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-outline uppercase tracking-wider text-[10px] flex items-center gap-1">
+                      <span>Visual Instagram (GPT Image)</span>
+                      <span className="text-primary font-normal lowercase">1024x1024</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleRetryImage(activePost.id!)}
+                      disabled={isRetryingImage || isGeneratingLazy}
+                      className="text-[11px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-colors"
+                      title="Generate ulang gambar ini"
+                    >
+                      <span className={`material-symbols-outlined text-xs ${isRetryingImage ? "animate-spin" : ""}`}>
+                        refresh
+                      </span>
+                      <span>{isRetryingImage ? "Memproses..." : "Ganti / Request Ulang"}</span>
+                    </button>
+                  </div>
+                  <div className="rounded-2xl overflow-hidden border border-outline-variant/30 bg-black/5 aspect-square max-h-80 w-full flex items-center justify-center shadow-xs">
+                    <img
+                      src={activePost.media_url}
+                      alt={activePost.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              ) : (
+                activePost.status !== "PLANNED" && !isGeneratingLazy && (
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-outline uppercase tracking-wider text-[10px] flex items-center justify-between">
+                      <span>Visual Instagram</span>
+                      <span className="text-red-600 font-semibold">
+                        {activePost.image_status === "FAILED" ? "Gagal Dibuat" : "Belum Ada Gambar"}
+                      </span>
+                    </label>
+                    <div className="rounded-2xl border-2 border-dashed border-red-200/80 bg-red-50/20 p-6 flex flex-col items-center justify-center text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                        <span className={`material-symbols-outlined text-2xl ${isRetryingImage ? "animate-spin text-primary" : ""}`}>
+                          {isRetryingImage ? "progress_activity" : "broken_image"}
+                        </span>
+                      </div>
+                      <div className="space-y-1 max-w-sm">
+                        <p className="font-bold text-on-surface text-xs">
+                          {isRetryingImage
+                            ? "Sedang memproses ulang visual..."
+                            : activePost.image_status === "FAILED"
+                            ? "Gambar Instagram Gagal Dibuat"
+                            : "Gambar Belum Tersedia"}
+                        </p>
+                        <p className="text-[11px] text-outline leading-relaxed">
+                          {isRetryingImage
+                            ? "AI Image Agent sedang menghasilkan visual baru dari OpenAI..."
+                            : "Klik tombol di bawah untuk meminta AI menghasilkan gambar ulang untuk postingan ini."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRetryImage(activePost.id!)}
+                        disabled={isRetryingImage || isGeneratingLazy}
+                        className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <span className={`material-symbols-outlined text-sm ${isRetryingImage ? "animate-spin" : ""}`}>
+                          refresh
+                        </span>
+                        <span>{isRetryingImage ? "Sedang Memproses..." : "Request Ulang Image"}</span>
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Full Caption generated by GPT-5.6 Luna */}
+              {activePost.caption && (
+                <div className="space-y-1.5">
+                  <label className="font-bold text-outline uppercase tracking-wider text-[10px] flex items-center justify-between">
+                    <span>Caption Instagram Final</span>
+                    <span className="text-primary font-normal lowercase">Model: 5.6 Luna</span>
+                  </label>
+                  <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/20 text-on-surface whitespace-pre-wrap leading-relaxed text-xs max-h-56 overflow-y-auto">
+                    {activePost.caption}
+                  </div>
+                </div>
+              )}
+
+              {/* Hashtags Chips */}
+              {activePost.hashtags && activePost.hashtags.length > 0 && (
+                <div className="space-y-1">
+                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
+                    Hashtags ({activePost.hashtags.length})
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activePost.hashtags.map((tag: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 rounded-md bg-surface-container text-primary font-mono text-[10px]"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ═════════════════════════════════════════════════════════════
+                  LAZY GENERATION CONTENT BRIEF (Initial Brief)
+                  ═════════════════════════════════════════════════════════════ */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-on-surface text-xs uppercase tracking-wider text-outline">
+                    Content Brief
+                  </span>
+                  {activePost.status === "PLANNED" && (
+                    <span className="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">schedule</span>
+                      <span>Lazy Generation H-1</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Hook */}
+                <div className="space-y-1">
+                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
+                    Opening Hook Brief
+                  </label>
+                  <div className="p-3 rounded-xl bg-surface border border-outline-variant/20 text-on-surface font-medium italic">
+                    &ldquo;{activePost.hook}&rdquo;
+                  </div>
+                </div>
+
+                {/* Key Points */}
+                <div className="space-y-1">
+                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
+                    Poin Kunci Konten
+                  </label>
+                  <ul className="space-y-1 p-3 rounded-xl bg-surface border border-outline-variant/20 text-on-surface-variant list-disc list-inside">
+                    {activePost.key_points && activePost.key_points.length > 0 ? (
+                      activePost.key_points.map((pt, i) => <li key={i}>{pt}</li>)
+                    ) : (
+                      <li>{activePost.topic}</li>
+                    )}
+                  </ul>
+                </div>
+
+                {/* Call to Action */}
+                <div className="space-y-1">
+                  <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
+                    Call to Action (CTA)
+                  </label>
+                  <div className="p-3 rounded-xl bg-surface border border-outline-variant/20 text-primary font-semibold">
+                    {activePost.cta}
+                  </div>
+                </div>
+
+                {/* Visual Direction */}
+                {activePost.visual_direction && (
+                  <div className="space-y-1">
+                    <label className="font-bold text-outline uppercase tracking-wider text-[10px]">
+                      Arah Visual AI
+                    </label>
+                    <div className="p-3 rounded-xl bg-surface border border-outline-variant/20 text-on-surface-variant">
+                      {activePost.visual_direction}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-outline-variant/20 bg-surface flex items-center justify-between">
-              <span className="text-[11px] text-outline">
-                Pilar: <strong>{activePost.pillar}</strong> ({activePost.content_type})
-              </span>
-              <button
-                type="button"
-                onClick={() => setActivePost(null)}
-                className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-xs hover:bg-primary-container transition-colors cursor-pointer"
-              >
-                Tutup
-              </button>
+            {/* Modal Footer Actions */}
+            <div className="p-4 border-t border-outline-variant/20 bg-surface flex flex-col sm:flex-row items-center justify-between gap-3">
+              {/* Pillar info & Image Quality selector */}
+              <div className="flex flex-wrap items-center gap-3 self-start sm:self-center">
+                <span className="text-[11px] text-outline">
+                  Pilar: <strong>{activePost.pillar}</strong> ({activePost.content_type})
+                </span>
+
+                {/* Inline Quality Selector for Lazy Generation */}
+                <div className="flex items-center gap-1.5 bg-surface-container/60 border border-outline-variant/30 px-2.5 py-1 rounded-xl text-xs">
+                  <span className="text-[10px] text-outline font-bold uppercase tracking-wider flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs text-primary">image</span>
+                    Quality:
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    {(["low", "medium", "high", "auto"] as const).map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setModalQuality(q)}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold capitalize transition-all cursor-pointer ${
+                          modalQuality === q
+                            ? "bg-primary text-on-primary shadow-xs"
+                            : "text-outline hover:text-on-surface"
+                        }`}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {/* Button for PLANNED state */}
+                {activePost.status === "PLANNED" && (
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerLazyGen(activePost.id!)}
+                    disabled={isGeneratingLazy}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                    <span>⚡ Generate Caption & Image (Lazy Gen)</span>
+                  </button>
+                )}
+
+                {/* Button to Retry Image when image failed or missing */}
+                {(activePost.image_status === "FAILED" || (!activePost.media_url && Boolean(activePost.caption))) && (
+                  <button
+                    type="button"
+                    onClick={() => handleRetryImage(activePost.id!)}
+                    disabled={isRetryingImage || isGeneratingLazy}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className={`material-symbols-outlined text-sm ${isRetryingImage ? "animate-spin" : ""}`}>
+                      refresh
+                    </span>
+                    <span>{isRetryingImage ? "Memproses..." : "Request Ulang Image"}</span>
+                  </button>
+                )}
+
+                {/* Button for NEEDS_REVISION state or below threshold */}
+                {(activePost.status === "NEEDS_REVISION" ||
+                  (activePost.ai_score && activePost.ai_score < 80) ||
+                  activePost.ai_review?.status === "NEEDS_REVISION") && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerRevision(activePost.id!)}
+                      disabled={isRevising || isGeneratingLazy}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <span className={`material-symbols-outlined text-sm ${isRevising ? "animate-spin" : ""}`}>
+                        {isRevising ? "progress_activity" : "auto_fix_high"}
+                      </span>
+                      <span>{isRevising ? "Sedang Merevisi..." : "🤖 Revisi Konten (AI)"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApprovePost(activePost.id!)}
+                      disabled={isApproving || isRevising}
+                      className="px-3 py-2 rounded-xl border border-outline-variant/40 hover:bg-surface text-outline hover:text-on-surface text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      title="Setujui meskipun skor di bawah rekomendasi"
+                    >
+                      <span>Tetap Approve</span>
+                    </button>
+                  </>
+                )}
+
+                {/* Button for READY FOR APPROVAL state */}
+                {activePost.status === "READY FOR APPROVAL" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerLazyGen(activePost.id!)}
+                      disabled={isGeneratingLazy}
+                      className="px-3 py-2 rounded-xl border border-outline-variant/40 hover:bg-surface text-outline hover:text-on-surface text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-sm">refresh</span>
+                      <span>Regenerate</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApprovePost(activePost.id!)}
+                      disabled={isApproving}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                      <span>{isApproving ? "Menyetujui..." : "✓ Approve Post"}</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivePost(null);
+                    setLazyFeedback({ type: null, message: "" });
+                  }}
+                  className="px-4 py-2 rounded-xl border border-outline-variant/30 text-outline hover:text-on-surface hover:bg-surface-container font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>

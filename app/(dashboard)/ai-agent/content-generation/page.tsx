@@ -106,6 +106,7 @@ export default function ContentGenerationPage() {
     Storytelling: 5,
   });
 
+  const [imageQuality, setImageQuality] = useState<"low" | "medium" | "high" | "auto">("medium");
   const [isEditingStrategy, setIsEditingStrategy] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | null;
@@ -168,6 +169,9 @@ export default function ContentGenerationPage() {
           setPostingTime(prefRes.data.postingTime);
           setContentTypes(prefRes.data.contentTypes);
           setStrategy(prefRes.data.strategyDistribution);
+          if (prefRes.data.imageQuality) {
+            setImageQuality(prefRes.data.imageQuality);
+          }
           setBusinessInfo({
             name: prefRes.businessName || "Bisnis Anda",
             category: prefRes.businessCategory || "Kuliner & F&B",
@@ -250,6 +254,7 @@ export default function ContentGenerationPage() {
         postingTime,
         contentTypes,
         strategyDistribution: strategy,
+        imageQuality,
       };
 
       const res = await saveContentPreferences(payload);
@@ -422,6 +427,30 @@ export default function ContentGenerationPage() {
 
           {/* Large Hero CTA Button */}
           <div className="shrink-0 flex flex-col items-center lg:items-end gap-3">
+            {/* Quick Image Quality Pill Selector in Hero */}
+            <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2.5 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-white/20 text-xs shadow-sm">
+              <div className="flex items-center gap-1.5 text-indigo-100">
+                <span className="material-symbols-outlined text-sm text-amber-300">image</span>
+                <span className="font-semibold text-[11px]">Quality Gambar:</span>
+              </div>
+              <div className="inline-flex rounded-xl bg-black/30 p-0.5 border border-white/10">
+                {(["low", "medium", "high", "auto"] as const).map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setImageQuality(q)}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] capitalize transition-all cursor-pointer ${
+                      imageQuality === q
+                        ? "bg-white text-indigo-950 shadow-xs scale-105"
+                        : "text-indigo-200 hover:text-white"
+                    }`}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={handleGenerate30DayPlan}
@@ -1053,6 +1082,122 @@ export default function ContentGenerationPage() {
                       <p className="text-xs text-outline mt-1 line-clamp-2 leading-relaxed">
                         {type.desc}
                       </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section D: AI Image Quality Selection */}
+          <div className="pt-space-md border-t border-outline-variant/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="font-label-md text-label-md font-bold text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-primary">image</span>
+                  <span>AI Image Quality</span>
+                  <span className="text-xs font-normal text-outline">
+                    (Kualitas Visual Gambar)
+                  </span>
+                </label>
+                <p className="text-xs text-outline mt-0.5">
+                  Pilih tingkat kualitas render visual gambar Instagram yang akan dikirim ke OpenAI Image Generator.
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary font-bold text-xs uppercase tracking-wide">
+                Quality: {imageQuality}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                {
+                  id: "low",
+                  label: "Low",
+                  badge: "Cepat",
+                  desc: "Render paling cepat, hemat waktu pemrosesan",
+                  icon: "bolt",
+                },
+                {
+                  id: "medium",
+                  label: "Medium",
+                  badge: "Rekomendasi",
+                  desc: "Keseimbangan ideal antara detail visual tajam & kecepatan",
+                  icon: "auto_awesome",
+                },
+                {
+                  id: "high",
+                  label: "High",
+                  badge: "HD Maksimal",
+                  desc: "Kualitas visual maksimal dengan resolusi dan detail ekstra",
+                  icon: "high_quality",
+                },
+                {
+                  id: "auto",
+                  label: "Auto",
+                  badge: "AI Managed",
+                  desc: "Kualitas ditentukan otomatis sesuai kompleksitas prompt visual",
+                  icon: "tune",
+                },
+              ].map((opt) => {
+                const isSelected = imageQuality === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setImageQuality(opt.id as any)}
+                    className={`p-4 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-secondary-container/60 border-primary ring-2 ring-primary/20 text-on-surface shadow-xs"
+                        : "bg-surface border-outline-variant/40 hover:border-primary/40 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                              isSelected
+                                ? "bg-primary text-white"
+                                : "bg-surface-container text-outline"
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-base">
+                              {opt.icon}
+                            </span>
+                          </div>
+                          <span className="font-bold text-sm text-on-surface">
+                            {opt.label}
+                          </span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            opt.id === "medium"
+                              ? "bg-primary/10 text-primary border border-primary/20"
+                              : "bg-surface-container text-outline"
+                          }`}
+                        >
+                          {opt.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs text-outline leading-relaxed">
+                        {opt.desc}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-outline-variant/20 flex items-center justify-between text-[11px]">
+                      <span className={isSelected ? "text-primary font-semibold" : "text-outline"}>
+                        {isSelected ? "✓ Terpilih" : "Pilih opsi ini"}
+                      </span>
+                      <div
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          isSelected
+                            ? "border-primary bg-primary text-white"
+                            : "border-outline-variant bg-transparent"
+                        }`}
+                      >
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
                     </div>
                   </button>
                 );

@@ -111,6 +111,16 @@ export async function get30DayPlanStatus(): Promise<{
           product_reference: p.product_reference || null,
           content_goal: p.content_goal || undefined,
           data_sources: Array.isArray(p.data_sources) ? p.data_sources : [],
+          // Lazy Generation & Review fields
+          caption: p.caption || null,
+          hashtags: Array.isArray(p.hashtags) ? p.hashtags : [],
+          media_url: p.media_url || null,
+          ai_score: p.ai_score || null,
+          ai_review: p.ai_review || null,
+          caption_status: p.caption_status || "PENDING",
+          image_status: p.image_status || "PENDING",
+          generation_error: p.generation_error || null,
+          generated_at: p.generated_at || null,
         }));
       }
     } catch (dbErr) {
@@ -459,3 +469,79 @@ export async function generate30DayPlanAction(): Promise<{
     return { success: false, error: err.message || "Gagal membuat rencana konten." };
   }
 }
+
+/**
+ * 3. Enqueue 30-Day Plan Generation to BullMQ (content-planning queue)
+ * Conforms to PRD Section 34: "Jangan menjalankan pekerjaan AI berat langsung dari request HTTP"
+ */
+export async function enqueue30DayPlanAction(): Promise<{
+  success: boolean;
+  queued?: boolean;
+  jobId?: string;
+  queueName?: string;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Pengguna tidak terautentikasi." };
+    }
+
+    // Resolve Workspace
+    let workspaceId: string | null = null;
+    const { data: ws } = await supabase
+      .from("workspaces")
+      .select("id")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (ws) {
+      workspaceId = ws.id;
+    } else if (user.user_metadata?.workspace_id) {
+      workspaceId = user.user_metadata.workspace_id;
+    }
+
+    if (!workspaceId) {
+      return { success: false, error: "Workspace bisnis tidak ditemukan." };
+    }
+
+    const { isRedisConnected } = await import("@/lib/queue/redis");
+    const redisAlive = await isRedisConnected();
+
+    if (!redisAlive) {
+      return {
+        success: false,
+        error:
+          "Redis server belum terhubung. Pastikan service Redis berjalan di " +
+          (process.env.REDIS_HOST || "127.0.0.1") +
+          ":" +
+          (process.env.REDIS_PORT || "6379") +
+          " atau jalankan 'npm run worker' setelah Redis aktif.",
+      };
+    }
+
+    const { enqueueContentPlanning, QUEUE_NAMES } = await import("@/lib/queue/queues");
+    const result = await enqueueContentPlanning({
+      workspaceId,
+      userId: user.id,
+      startDate: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      queued: true,
+      jobId: result.jobId,
+      queueName: QUEUE_NAMES.CONTENT_PLANNING,
+    };
+  } catch (err: any) {
+    console.error("Error enqueueing content-planning job:", err);
+    return { success: false, error: err.message || "Gagal memasukkan job ke antrian Redis." };
+  }
+}
+

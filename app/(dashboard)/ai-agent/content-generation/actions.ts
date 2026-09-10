@@ -9,6 +9,7 @@ export interface ContentPreferencesData {
   postingTime: string;
   contentTypes: string[];
   strategyDistribution: Record<string, number>;
+  imageQuality?: "low" | "medium" | "high" | "auto";
 }
 
 const DEFAULT_PREFERENCES: ContentPreferencesData = {
@@ -31,6 +32,7 @@ const DEFAULT_PREFERENCES: ContentPreferencesData = {
     Tips: 10,
     Storytelling: 5,
   },
+  imageQuality: "medium",
 };
 
 /**
@@ -142,7 +144,7 @@ export async function getContentPreferences(): Promise<{
     try {
       const { data: cp } = await supabase
         .from("content_preferences")
-        .select("posts_per_week, posting_days, posting_time, content_types, strategy_distribution")
+        .select("posts_per_week, posting_days, posting_time, content_types, strategy_distribution, image_quality")
         .eq("workspace_id", workspaceId)
         .maybeSingle();
 
@@ -156,6 +158,7 @@ export async function getContentPreferences(): Promise<{
             cp.strategy_distribution && typeof cp.strategy_distribution === "object"
               ? cp.strategy_distribution
               : DEFAULT_PREFERENCES.strategyDistribution,
+          imageQuality: (cp.image_quality as any) || DEFAULT_PREFERENCES.imageQuality,
         };
       }
     } catch (cpErr) {
@@ -213,6 +216,7 @@ export async function saveContentPreferences(
             posting_time: payload.postingTime,
             content_types: payload.contentTypes,
             strategy_distribution: payload.strategyDistribution,
+            image_quality: payload.imageQuality || "medium",
             updated_at: new Date().toISOString(),
           },
           { onConflict: "workspace_id" }
