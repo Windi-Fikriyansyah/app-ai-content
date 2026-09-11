@@ -30,22 +30,58 @@ export function createPlanningWorker() {
           throw new Error(`Business Profile not found for workspace ${workspaceId}`);
         }
 
-        const { data: prods } = await supabase
+        let { data: prods } = await supabase
           .from("products_services")
           .select("name, price, description, benefits")
           .eq("business_profile_id", bp.id);
 
-        const { data: promo } = await supabase
+        if (!prods || prods.length === 0) {
+          const { data: prodsFallback } = await supabase
+            .from("products_services")
+            .select("name, price, description, benefits")
+            .eq("workspace_id", workspaceId);
+          if (prodsFallback && prodsFallback.length > 0) {
+            prods = prodsFallback;
+          }
+        }
+
+        let { data: promo } = await supabase
           .from("promotions")
           .select("name, discount, start_date, end_date")
           .eq("business_profile_id", bp.id)
           .maybeSingle();
+
+        if (!promo) {
+          const { data: promoFallback } = await supabase
+            .from("promotions")
+            .select("name, discount, start_date, end_date")
+            .eq("workspace_id", workspaceId)
+            .maybeSingle();
+          if (promoFallback) promo = promoFallback;
+        }
 
         const { data: bk } = await supabase
           .from("brand_kits")
           .select("primary_color, secondary_color, visual_style, writing_tone, language, emoji_usage")
           .eq("workspace_id", workspaceId)
           .maybeSingle();
+
+        const productItems =
+          prods && prods.length > 0
+            ? prods.map((p: any) => ({
+                name: p.name || "",
+                price: p.price || "",
+                description: p.description || "",
+                benefits: p.benefits || "",
+              }))
+            : [
+                {
+                  name: bp.business_name || "Produk & Layanan Utama",
+                  price: "Hubungi Admin",
+                  description: bp.description || "Layanan dan produk berkualitas tinggi untuk pelanggan kami.",
+                  benefits: "Kualitas terjamin dan pelayanan profesional.",
+                },
+              ];
 
         context = {
           businessName: bp.business_name,
@@ -55,12 +91,7 @@ export function createPlanningWorker() {
           website: bp.website || "",
           whatsapp: bp.whatsapp || "",
           targetAudience: bp.target_audience || "Pelanggan & Pengikut Instagram",
-          products: (prods || []).map((p: any) => ({
-            name: p.name || "",
-            price: p.price || "",
-            description: p.description || "",
-            benefits: p.benefits || "",
-          })),
+          products: productItems,
           promotion: promo?.name
             ? {
                 name: promo.name,
@@ -129,9 +160,10 @@ export function createPlanningWorker() {
         title: p.title,
         content_type: p.content_type,
         format: p.format || "Feed",
+        platform: p.platform || "instagram",
         pillar: p.pillar || p.content_type,
         objective: p.objective || "engagement",
-        target_audience: p.audience_stage || context?.targetAudience || "Instagram Audience",
+        audience_stage: p.audience_stage || null,
         topic: p.topic,
         angle: p.angle || null,
         hook: p.hook || null,
@@ -139,6 +171,8 @@ export function createPlanningWorker() {
         cta: p.cta || null,
         visual_direction: p.visual_direction || null,
         product_reference: p.product_reference || null,
+        content_goal: (p as any).content_goal || null,
+        data_sources: (p as any).data_sources || [],
         scheduled_date: p.scheduledDate,
         scheduled_time: p.scheduledTime ? `${p.scheduledTime}:00` : "19:00:00",
         status: "PLANNED",

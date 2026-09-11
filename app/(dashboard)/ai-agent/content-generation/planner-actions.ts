@@ -488,18 +488,29 @@ export async function enqueue30DayPlanAction(): Promise<{
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return { success: false, error: "Pengguna tidak terautentikasi." };
+      return { success: false, queued: false, error: "Pengguna tidak terautentikasi." };
     }
 
-    // Resolve Workspace
+    // Resolve Workspace (check owner_id, then user_id fallback)
     let workspaceId: string | null = null;
-    const { data: ws } = await supabase
+    let { data: ws } = await supabase
       .from("workspaces")
       .select("id")
       .eq("owner_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (!ws) {
+      const fallback = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      ws = fallback.data;
+    }
 
     if (ws) {
       workspaceId = ws.id;
@@ -508,7 +519,7 @@ export async function enqueue30DayPlanAction(): Promise<{
     }
 
     if (!workspaceId) {
-      return { success: false, error: "Workspace bisnis tidak ditemukan." };
+      return { success: false, queued: false, error: "Workspace bisnis tidak ditemukan." };
     }
 
     const { isRedisConnected } = await import("@/lib/queue/redis");
@@ -517,6 +528,7 @@ export async function enqueue30DayPlanAction(): Promise<{
     if (!redisAlive) {
       return {
         success: false,
+        queued: false,
         error:
           "Redis server belum terhubung. Pastikan service Redis berjalan di " +
           (process.env.REDIS_HOST || "127.0.0.1") +
@@ -541,7 +553,7 @@ export async function enqueue30DayPlanAction(): Promise<{
     };
   } catch (err: any) {
     console.error("Error enqueueing content-planning job:", err);
-    return { success: false, error: err.message || "Gagal memasukkan job ke antrian Redis." };
+    return { success: false, queued: false, error: err.message || "Gagal memasukkan job ke antrian Redis." };
   }
 }
 

@@ -45,6 +45,7 @@ import type { ContentPreferencesData } from "./actions";
 import {
   get30DayPlanStatus,
   generate30DayPlanAction,
+  enqueue30DayPlanAction,
 } from "./planner-actions";
 import type { ContentPlanItem } from "@/lib/ai/planner";
 
@@ -383,7 +384,7 @@ export default function ContentGenerationPage() {
   };
 
   // ═══════════════════════════════════════════════════════════════════
-  // TRIGGER GENERATE 30-DAY PLAN WITH STEP SIMULATION
+  // TRIGGER GENERATE 30-DAY PLAN WITH BULLMQ / REDIS & POLLING
   // ═══════════════════════════════════════════════════════════════════
   const handleGenerate30DayPlan = async () => {
     // 1. Auto-save current preferences first
@@ -393,24 +394,93 @@ export default function ContentGenerationPage() {
     setStepIndex(0);
     setFeedback({ type: null, message: "" });
 
-    // Multi-step progressive animation (Aha Moment Experience)
-    // Step 0: Analyzing business (600ms)
-    // Step 1: Analyzing products (700ms)
-    // Step 2: Applying brand voice (700ms)
-    // Step 3: Creating content pillars (800ms)
-    // Step 4: Building 30-day calendar & server action (1000ms)
-
-    const timer1 = setTimeout(() => setStepIndex(1), 600);
-    const timer2 = setTimeout(() => setStepIndex(2), 1400);
-    const timer3 = setTimeout(() => setStepIndex(3), 2200);
-    const timer4 = setTimeout(() => setStepIndex(4), 3000);
+    // Step animation helper
+    let currentStep = 0;
+    const stepInterval = setInterval(() => {
+      currentStep = Math.min(currentStep + 1, 3);
+      setStepIndex(currentStep);
+    }, 1200);
 
     try {
-      // Execute Server Action
+      // 2. Attempt enqueue via BullMQ / Redis
+      const enqueueRes = await enqueue30DayPlanAction();
+
+      if (enqueueRes.success && enqueueRes.queued && enqueueRes.jobId) {
+        // Enqueued successfully into BullMQ queue! Poll job status
+        const jobId = enqueueRes.jobId;
+        const maxPolls = 60; // 60 * 2s = 120s timeout
+        let polls = 0;
+        let jobFinished = false;
+
+        while (polls < maxPolls && !jobFinished) {
+          await new Promise((r) => setTimeout(r, 2000));
+          polls++;
+
+          try {
+            const statusRes = await fetch(
+              `/api/queue/status?queue=content-planning&jobId=${jobId}`
+            );
+            const statusData = await statusRes.json();
+
+            if (statusData.success) {
+              if (statusData.state === "completed") {
+                jobFinished = true;
+                clearInterval(stepInterval);
+                setStepIndex(4);
+
+                // Fetch newly saved plans from DB
+                const planStatus = await get30DayPlanStatus();
+                if (planStatus.success && planStatus.hasPlans) {
+                  setHasExistingPlans(true);
+                  setTotalPlansCount(planStatus.totalPlans);
+                  setGeneratedPlans(planStatus.upcomingPlans);
+                  setShowPlansPreview(true);
+                  setFeedback({
+                    type: "success",
+                    message: `✨ Berhasil! ${planStatus.totalPlans} rencana konten 30 hari telah diproses antrian BullMQ/Redis dan dijadwalkan ke kalender.`,
+                  });
+                } else {
+                  setFeedback({
+                    type: "success",
+                    message: "✨ Rencana konten berhasil diproses oleh background worker BullMQ!",
+                  });
+                }
+                setIsGenerating(false);
+                return;
+              } else if (statusData.state === "failed") {
+                jobFinished = true;
+                clearInterval(stepInterval);
+                setIsGenerating(false);
+                setFeedback({
+                  type: "error",
+                  message:
+                    statusData.failedReason ||
+                    "Background worker gagal memproses rencana konten.",
+                });
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                return;
+              } else if (polls >= 7 && statusData.state === "waiting") {
+                // If job has been waiting for > 14s with no active worker, gracefully fallback to direct generation
+                console.warn(
+                  "Worker content-planning belum aktif di terminal, otomatis beralih ke direct AI generation..."
+                );
+                break;
+              }
+            }
+          } catch (pollErr) {
+            console.warn("Polling status error:", pollErr);
+          }
+        }
+
+        if (jobFinished) return;
+      }
+
+      // 3. Direct Execution Fallback (if Redis offline or worker idle)
       const res = await generate30DayPlanAction();
+      clearInterval(stepInterval);
 
       if (res.success && res.plans) {
-        // Ensure animation finishes smoothly on success
+        setStepIndex(4);
         setTimeout(() => {
           setIsGenerating(false);
           setHasExistingPlans(true);
@@ -421,13 +491,8 @@ export default function ContentGenerationPage() {
             type: "success",
             message: `✨ Berhasil! ${res.plans!.length} rencana konten 30 hari telah dibuat oleh AI dan dijadwalkan ke kalender.`,
           });
-        }, 3200);
+        }, 800);
       } else {
-        // Immediate failure: stop animation and display alert immediately
-        clearTimeout(timer1);
-        clearTimeout(timer2);
-        clearTimeout(timer3);
-        clearTimeout(timer4);
         setIsGenerating(false);
         setFeedback({
           type: "error",
@@ -436,10 +501,7 @@ export default function ContentGenerationPage() {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (err: any) {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
+      clearInterval(stepInterval);
       setIsGenerating(false);
       setFeedback({
         type: "error",
