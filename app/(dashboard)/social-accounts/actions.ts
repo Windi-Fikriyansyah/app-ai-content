@@ -466,61 +466,6 @@ export async function getThreadsConnectUrlAction(originUrl?: string): Promise<{
   }
 }
 
-/**
- * 3c. Direct / Manual Connect Social Account (e.g. Threads, Instagram)
- * Provides instant connection and testing capability
- */
-export async function connectManualSocialAccountAction(params: {
-  provider: "threads" | "instagram" | "facebook" | "twitter" | "linkedin" | "tiktok";
-  username: string;
-  displayName?: string;
-  providerAccountId?: string;
-}): Promise<{
-  success: boolean;
-  message?: string;
-  error?: string;
-}> {
-  try {
-    const { user, workspace, supabase } = await getActiveWorkspaceInfo();
-    if (!user || !workspace?.id || !supabase) {
-      return { success: false, error: "Sesi tidak ditemukan." };
-    }
-
-    const cleanUsername = params.username.replace(/^@/, "").trim();
-    if (!cleanUsername) {
-      return { success: false, error: "Username tidak boleh kosong." };
-    }
-
-    const providerAccountId =
-      params.providerAccountId ||
-      `acc_${params.provider}_${cleanUsername.toLowerCase()}_${Date.now().toString(36)}`;
-
-    const { error: upsertErr } = await supabase.from("social_accounts").upsert(
-      {
-        workspace_id: workspace.id,
-        provider: params.provider.toLowerCase(),
-        provider_account_id: providerAccountId,
-        username: cleanUsername,
-        display_name: params.displayName || cleanUsername,
-        status: "connected",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "workspace_id,provider,provider_account_id" }
-    );
-
-    if (upsertErr) {
-      return { success: false, error: upsertErr.message };
-    }
-
-    revalidatePath("/social-accounts");
-    return {
-      success: true,
-      message: `Akun ${params.provider.toUpperCase()} @${cleanUsername} berhasil dihubungkan!`,
-    };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Gagal menghubungkan akun." };
-  }
-}
 
 /**
  * 4. Disconnect Social Account

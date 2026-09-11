@@ -65,6 +65,8 @@ export function createZernioDispatchWorker() {
         "zernio_sandbox_key";
 
       // 4. Resolve All Active Connected Social Media Accounts (Multi-platform auto dispatch)
+      const isValidZernioId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
+
       const { data: activeSocialAccounts } = await supabase
         .from("social_accounts")
         .select("id, provider, provider_account_id, username, status")
@@ -76,29 +78,67 @@ export function createZernioDispatchWorker() {
 
       if (activeSocialAccounts && activeSocialAccounts.length > 0) {
         for (const acc of activeSocialAccounts) {
-          const accId = acc.provider_account_id || acc.id;
-          if (accId) {
-            accountIds.push(accId);
-            const prov = (acc.provider || "instagram").toLowerCase();
-            platforms.push({
-              platform: prov === "x" ? "twitter" : prov,
-              accountId: accId,
-            });
+          const accId = acc.provider_account_id;
+          if (accId && isValidZernioId(accId)) {
+            if (!accountIds.includes(accId)) {
+              accountIds.push(accId);
+              const prov = (acc.provider || "instagram").toLowerCase();
+              platforms.push({
+                platform: prov === "x" ? "twitter" : prov,
+                accountId: accId,
+              });
+            }
           }
         }
       }
 
-      // Fallback if no accounts connected yet
+      // 5. If no valid Zernio IDs in DB, dynamically query live accounts from Zernio
+      const zernioClient = new ZernioClient(zernioApiKey);
+
       if (accountIds.length === 0) {
-        const fallbackId = workspace?.zernio_profile_id || "acc_instagram_primary";
-        accountIds = [fallbackId];
-        platforms = [{ platform: "instagram", accountId: fallbackId }];
+        console.log(`[Worker:zernio-dispatch] 🔍 No valid 24-hex account IDs in DB. Querying live accounts from Zernio...`);
+        try {
+          const accountsRes = await zernioClient.getAccounts(workspace?.zernio_profile_id);
+          let remoteAccs: any[] = [];
+          const raw = accountsRes.data as any;
+          if (Array.isArray(raw)) remoteAccs = raw;
+          else if (raw && Array.isArray(raw.accounts)) remoteAccs = raw.accounts;
+          else if (raw && Array.isArray(raw.data)) remoteAccs = raw.data;
+
+          if (remoteAccs.length === 0) {
+            const allRes = await zernioClient.getAccounts();
+            const allRaw = allRes.data as any;
+            if (Array.isArray(allRaw)) remoteAccs = allRaw;
+            else if (allRaw && Array.isArray(allRaw.accounts)) remoteAccs = allRaw.accounts;
+            else if (allRaw && Array.isArray(allRaw.data)) remoteAccs = allRaw.data;
+          }
+
+          for (const ra of remoteAccs) {
+            const rId = ra._id || ra.id;
+            if (rId && isValidZernioId(rId)) {
+              if (!accountIds.includes(rId)) {
+                accountIds.push(rId);
+                const prov = (ra.platform || ra.provider || "instagram").toLowerCase();
+                platforms.push({
+                  platform: prov === "x" ? "twitter" : prov,
+                  accountId: rId,
+                });
+              }
+            }
+          }
+        } catch (zFetchErr: any) {
+          console.warn(`[Worker:zernio-dispatch] ⚠️ Could not fetch live Zernio accounts:`, zFetchErr.message);
+        }
+      }
+
+      if (accountIds.length === 0) {
+        throw new Error("Tidak ada akun media sosial yang valid terhubung ke Zernio. Harap periksa menu Social Accounts.");
       }
 
       const zernioAccountId = accountIds[0];
       const platformNames = Array.from(new Set(platforms.map((p) => p.platform))).join(", ");
 
-      // 5. Calculate ISO Scheduled Date Time (Asia/Jakarta +07:00)
+      // 6. Calculate ISO Scheduled Date Time (Asia/Jakarta +07:00)
       const scheduledDateStr = post.scheduled_date || new Date().toISOString().split("T")[0];
       const scheduledTimeStr = post.scheduled_time || "19:00:00";
       const scheduledAtStr = `${scheduledDateStr}T${scheduledTimeStr}+07:00`;
@@ -108,9 +148,6 @@ export function createZernioDispatchWorker() {
       }
 
       await job.updateProgress(50);
-
-      // 6. Call Zernio API
-      const zernioClient = new ZernioClient(zernioApiKey);
 
       // If old Zernio post exists, delete it first to ensure no duplicates
       const oldZernioPostId = post.zernio_post_id;

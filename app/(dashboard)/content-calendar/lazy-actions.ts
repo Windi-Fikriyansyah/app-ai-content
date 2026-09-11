@@ -308,6 +308,8 @@ export async function approvePostAction(postId: string): Promise<{
       "zernio_sandbox_key";
 
     // 5. Resolve All Active Connected Social Accounts from social_accounts table
+    const isValidZernioId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
+
     const { data: activeSocialAccounts } = await supabase
       .from("social_accounts")
       .select("id, provider, provider_account_id, username, status")
@@ -319,22 +321,64 @@ export async function approvePostAction(postId: string): Promise<{
 
     if (activeSocialAccounts && activeSocialAccounts.length > 0) {
       for (const acc of activeSocialAccounts) {
-        const accId = acc.provider_account_id || acc.id;
-        if (accId) {
-          accountIds.push(accId);
-          const prov = (acc.provider || "instagram").toLowerCase();
-          platforms.push({
-            platform: prov === "x" ? "twitter" : prov,
-            accountId: accId,
-          });
+        const accId = acc.provider_account_id;
+        if (accId && isValidZernioId(accId)) {
+          if (!accountIds.includes(accId)) {
+            accountIds.push(accId);
+            const prov = (acc.provider || "instagram").toLowerCase();
+            platforms.push({
+              platform: prov === "x" ? "twitter" : prov,
+              accountId: accId,
+            });
+          }
         }
       }
     }
 
+    const { ZernioClient } = await import("@/lib/zernio/client");
+    const zernioClient = new ZernioClient(zernioApiKey);
+
     if (accountIds.length === 0) {
-      const fallbackId = workspace?.zernio_profile_id || "acc_instagram_primary";
-      accountIds = [fallbackId];
-      platforms = [{ platform: "instagram", accountId: fallbackId }];
+      console.log(`[ZernioPublish] 🔍 No valid 24-hex account IDs in DB. Querying live accounts from Zernio...`);
+      try {
+        const accountsRes = await zernioClient.getAccounts(workspace?.zernio_profile_id);
+        let remoteAccs: any[] = [];
+        const raw = accountsRes.data as any;
+        if (Array.isArray(raw)) remoteAccs = raw;
+        else if (raw && Array.isArray(raw.accounts)) remoteAccs = raw.accounts;
+        else if (raw && Array.isArray(raw.data)) remoteAccs = raw.data;
+
+        if (remoteAccs.length === 0) {
+          const allRes = await zernioClient.getAccounts();
+          const allRaw = allRes.data as any;
+          if (Array.isArray(allRaw)) remoteAccs = allRaw;
+          else if (allRaw && Array.isArray(allRaw.accounts)) remoteAccs = allRaw.accounts;
+          else if (allRaw && Array.isArray(allRaw.data)) remoteAccs = allRaw.data;
+        }
+
+        for (const ra of remoteAccs) {
+          const rId = ra._id || ra.id;
+          if (rId && isValidZernioId(rId)) {
+            if (!accountIds.includes(rId)) {
+              accountIds.push(rId);
+              const prov = (ra.platform || ra.provider || "instagram").toLowerCase();
+              platforms.push({
+                platform: prov === "x" ? "twitter" : prov,
+                accountId: rId,
+              });
+            }
+          }
+        }
+      } catch (zFetchErr: any) {
+        console.warn(`[ZernioPublish] ⚠️ Could not fetch live Zernio accounts:`, zFetchErr.message);
+      }
+    }
+
+    if (accountIds.length === 0) {
+      return {
+        success: false,
+        error: "Tidak ada akun media sosial yang valid terhubung ke Zernio. Harap hubungkan akun di menu Social Accounts.",
+      };
     }
 
     const zernioAccountId = accountIds[0];
@@ -350,10 +394,6 @@ export async function approvePostAction(postId: string): Promise<{
     if (isNaN(scheduledAtDate.getTime())) {
       scheduledAtDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // tomorrow fallback
     }
-
-    // 7. Call Zernio API to Create Scheduled Post
-    const { ZernioClient } = await import("@/lib/zernio/client");
-    const zernioClient = new ZernioClient(zernioApiKey);
 
     // If an old post exists in Zernio, delete it first to avoid duplicate schedules
     if (post.zernio_post_id) {

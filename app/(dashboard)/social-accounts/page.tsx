@@ -24,7 +24,6 @@ import {
   saveZernioApiKey,
   getInstagramConnectUrlAction,
   getThreadsConnectUrlAction,
-  connectManualSocialAccountAction,
   disconnectSocialAccount,
   removeZernioApiKey,
   SocialAccountsData,
@@ -68,9 +67,6 @@ function SocialAccountsContent() {
   const [isConnectingInstagram, setIsConnectingInstagram] = useState(false);
   // Connect Threads Flow State
   const [isConnectingThreads, setIsConnectingThreads] = useState(false);
-  const [showManualThreadsModal, setShowManualThreadsModal] = useState(false);
-  const [manualThreadsUsername, setManualThreadsUsername] = useState("");
-  const [isSavingManualThreads, setIsSavingManualThreads] = useState(false);
 
   const [connectFeedback, setConnectFeedback] = useState<{
     type: "success" | "error" | null;
@@ -205,43 +201,18 @@ function SocialAccountsContent() {
       if (res.success && res.authUrl) {
         window.location.href = res.authUrl;
       } else {
-        setShowManualThreadsModal(true);
+        setConnectFeedback({
+          type: "error",
+          message: res.error || "Gagal memulai sesi otorisasi Threads Zernio.",
+        });
+        setIsConnectingThreads(false);
       }
     } catch {
-      setShowManualThreadsModal(true);
-    } finally {
-      setIsConnectingThreads(false);
-    }
-  };
-
-  // Handle Manual Threads Submit
-  const handleManualThreadsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualThreadsUsername.trim()) return;
-
-    setIsSavingManualThreads(true);
-    try {
-      const res = await connectManualSocialAccountAction({
-        provider: "threads",
-        username: manualThreadsUsername.trim(),
-        displayName: manualThreadsUsername.trim(),
+      setConnectFeedback({
+        type: "error",
+        message: "Terjadi kesalahan saat menghubungi server.",
       });
-
-      if (res.success) {
-        setConnectFeedback({
-          type: "success",
-          message: res.message || "Akun Threads berhasil dihubungkan!",
-        });
-        setShowManualThreadsModal(false);
-        setManualThreadsUsername("");
-        await loadData();
-      } else {
-        alert(res.error || "Gagal menghubungkan akun Threads.");
-      }
-    } catch (err: any) {
-      alert(err.message || "Terjadi kesalahan saat menghubungkan akun Threads.");
-    } finally {
-      setIsSavingManualThreads(false);
+      setIsConnectingThreads(false);
     }
   };
 
@@ -633,7 +604,7 @@ function SocialAccountsContent() {
                     <span>Fitur & Dukungan:</span>
                   </div>
                   <p>• Auto-publish teks micro-blogging & multi-media</p>
-                  <p>• Otorisasi via Zernio OAuth / Sambung Cepat</p>
+                  <p>• Otorisasi resmi via Zernio OAuth (Meta Login)</p>
                 </div>
               </div>
 
@@ -662,35 +633,24 @@ function SocialAccountsContent() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={handleConnectThreads}
                       disabled={isConnectingThreads}
-                      className="flex-1 py-2.5 px-3.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-label-md text-label-md font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer text-xs sm:text-sm"
+                      className="w-full py-2.5 px-4 rounded-xl bg-black hover:bg-zinc-800 text-white font-label-md text-label-md font-semibold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer text-xs sm:text-sm"
                     >
                       {isConnectingThreads ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Menghubungkan...</span>
+                          <span>Menghubungkan ke Zernio...</span>
                         </>
                       ) : (
                         <>
                           <Link2 className="w-4 h-4" />
-                          <span>Hubungkan Threads</span>
+                          <span>Hubungkan Akun Threads</span>
                         </>
                       )}
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowManualThreadsModal(true)}
-                      title="Hubungkan langsung dengan memasukkan username Threads"
-                      className="py-2.5 px-3 rounded-xl border border-outline-variant/40 hover:bg-surface text-on-surface text-xs font-medium transition-colors cursor-pointer shrink-0"
-                    >
-                      Sambung Cepat
-                    </button>
-                  </div>
                 )}
               </div>
             </div>
@@ -957,82 +917,6 @@ function SocialAccountsContent() {
           <p className="font-body-sm text-sm text-on-surface-variant max-w-md mt-2">
             Silakan masukkan dan simpan <strong>Zernio API Key</strong> pada Langkah 1 di atas. Setelah tersimpan, opsi koneksi Instagram dan platform media sosial lainnya akan langsung terbuka.
           </p>
-        </div>
-      )}
-      {/* Modal Sambung Cepat Threads */}
-      {showManualThreadsModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center">
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 192 192">
-                    <path d="M141.537 88.9883C140.71 88.5919 139.87 88.2104 139.019 87.8451C137.537 60.5382 122.616 44.905 97.5619 44.745C97.4484 44.7443 97.3355 44.7443 97.222 44.745C75.2536 44.745 57.6534 59.8804 53.6499 82.2608C49.6464 104.641 60.3344 126.969 80.127 137.545C97.8099 146.992 119.985 144.137 134.428 130.485L120.73 117.078C110.849 126.417 95.8078 128.261 83.7431 121.815C70.2526 114.608 62.9734 99.3789 65.7011 84.126C68.4288 68.8732 80.4288 58.5583 95.3995 58.5583C95.4764 58.5583 95.554 58.5583 95.631 58.5587C112.592 58.6669 122.846 69.4586 123.87 88.3582C106.942 86.8837 89.3776 90.7937 77.0395 101.444C60.9161 115.361 58.5135 137.525 71.6661 150.963C84.8188 164.402 107.013 162.597 122.384 148.067C130.82 140.092 136.009 129.475 138.358 117.848C148.966 123.864 159.208 127.351 168.971 128.243C174.636 128.761 180.207 128.283 185.642 126.814L182.115 113.805C178.411 114.806 174.613 115.132 170.757 114.779C162.616 114.035 153.844 110.741 144.532 104.935C144.757 99.5108 143.754 94.1843 141.537 88.9883ZM114.341 135.539C102.871 146.381 86.2925 147.728 76.4719 137.695C66.6513 127.661 68.4452 111.112 80.4839 100.72C89.7042 92.7601 103.266 89.6587 116.326 90.6725C115.827 106.331 113.252 122.253 114.341 135.539Z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-bold text-on-surface text-base">Hubungkan Akun Threads</h3>
-                  <p className="text-xs text-outline">Masukkan username akun Threads Anda</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowManualThreadsModal(false)}
-                className="text-outline hover:text-on-surface p-1 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleManualThreadsSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-on-surface mb-1.5">
-                  Username Threads
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline font-medium text-sm">@</span>
-                  <input
-                    type="text"
-                    value={manualThreadsUsername}
-                    onChange={(e) => setManualThreadsUsername(e.target.value)}
-                    placeholder="contoh: dapur_bu_ani"
-                    className="w-full pl-8 pr-3.5 py-2.5 bg-surface rounded-xl border border-outline-variant/40 text-sm focus:outline-none focus:border-primary text-on-surface"
-                    autoFocus
-                  />
-                </div>
-                <p className="text-[11px] text-outline mt-1.5">
-                  Akun ini akan langsung terdaftar di sistem sebagai tujuan auto-publish konten multi-channel.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowManualThreadsModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-on-surface-variant hover:bg-surface cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingManualThreads || !manualThreadsUsername.trim()}
-                  className="px-5 py-2 rounded-xl bg-black text-white hover:bg-zinc-800 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                >
-                  {isSavingManualThreads ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Menyimpan...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Simpan Akun Threads</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
     </div>
