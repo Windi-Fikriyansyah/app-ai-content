@@ -395,13 +395,23 @@ export class ZernioClient {
       isDraft: false,
       draft: false,
 
-      // 2. Target Platforms and Accounts
+      // 2. Target Platforms and Accounts with platform-specific customMedia
       platforms:
         params.platforms && params.platforms.length > 0
-          ? params.platforms
+          ? params.platforms.map((p) => ({
+              ...p,
+              customMedia: mediaUrls.map((url) => ({
+                type: "image",
+                url,
+              })),
+            }))
           : params.accountIds.map((accId) => ({
               platform: "instagram",
               accountId: accId,
+              customMedia: mediaUrls.map((url) => ({
+                type: "image",
+                url,
+              })),
             })),
       accountIds: params.accountIds,
 
