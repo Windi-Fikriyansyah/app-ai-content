@@ -84,7 +84,8 @@ export async function get30DayPlanStatus(): Promise<{
         .select("*", { count: "exact" })
         .eq("workspace_id", workspaceId)
         .order("scheduled_date", { ascending: true })
-        .limit(30);
+        .order("scheduled_time", { ascending: true })
+        .limit(200);
 
       if (posts && posts.length > 0) {
         totalPlans = count || posts.length;

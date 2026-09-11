@@ -740,13 +740,18 @@ export default function ContentCalendarPage() {
             <span>/</span>
             <span className="text-on-surface font-semibold">11. Content Calendar</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="font-headline-lg text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
               Content Calendar
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200">
               Center Hub
             </span>
+            {plans.length > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold border border-indigo-200">
+                {plans.length} Konten Terjadwal
+              </span>
+            )}
           </div>
           <p className="font-body-md text-sm text-on-surface-variant mt-1">
             Kalender terpadu sebagai pusat kendali jadwal posting konten AI 30 hari Anda.
@@ -820,6 +825,13 @@ export default function ContentCalendarPage() {
           <h2 className="font-headline-sm text-xl font-bold text-on-surface tracking-tight">
             {MONTH_NAMES[month]} {year}
           </h2>
+
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant border border-outline-variant/30">
+            {plans.filter((p) => {
+              const [pY, pM] = (p.scheduledDate || "").split("-").map(Number);
+              return pY === year && pM === month + 1;
+            }).length} Post di bulan ini
+          </span>
 
           <button
             type="button"
