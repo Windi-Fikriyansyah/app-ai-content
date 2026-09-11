@@ -233,7 +233,14 @@ export function generatePostingSchedule(
   durationDays: number = 30
 ): ScheduleSlot[] {
   const targetDays = postingDays.length > 0 ? postingDays : ["Monday", "Wednesday", "Friday"];
-  const time = postingTime || "19:00";
+  const times =
+    postingTime && postingTime.includes(",")
+      ? postingTime
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [postingTime || "19:00"];
+
   const slots: ScheduleSlot[] = [];
 
   const current = new Date(startDate);
@@ -245,11 +252,13 @@ export function generatePostingSchedule(
   while (current <= endDate) {
     const dayName = DAY_NAME_MAP[current.getDay()];
     if (targetDays.includes(dayName)) {
-      slots.push({
-        date: current.toISOString().split("T")[0],
-        dayName,
-        time,
-      });
+      for (const t of times) {
+        slots.push({
+          date: current.toISOString().split("T")[0],
+          dayName,
+          time: t,
+        });
+      }
     }
     current.setDate(current.getDate() + 1);
   }

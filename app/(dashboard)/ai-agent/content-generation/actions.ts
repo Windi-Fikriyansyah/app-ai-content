@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 export interface ContentPreferencesData {
   postsPerWeek: number;
+  postsPerDay?: number; // 1, 2, or 3 posts per day (max 3)
   postingDays: string[];
   postingTime: string;
   contentTypes: string[];
@@ -13,7 +14,8 @@ export interface ContentPreferencesData {
 }
 
 const DEFAULT_PREFERENCES: ContentPreferencesData = {
-  postsPerWeek: 5,
+  postsPerWeek: 7,
+  postsPerDay: 1,
   postingDays: ["Monday", "Wednesday", "Friday"],
   postingTime: "19:00",
   contentTypes: [
@@ -149,14 +151,37 @@ export async function getContentPreferences(): Promise<{
         .maybeSingle();
 
       if (cp) {
+        let postsPerDay = 1;
+        const meta = (cp.strategy_distribution as any)?._meta;
+        if (meta?.postsPerDay) {
+          postsPerDay = Math.max(1, Math.min(3, Number(meta.postsPerDay)));
+        } else if (cp.posting_time && cp.posting_time.includes(",")) {
+          postsPerDay = Math.max(1, Math.min(3, cp.posting_time.split(",").length));
+        } else if (cp.posts_per_week && Array.isArray(cp.posting_days) && cp.posting_days.length > 0) {
+          postsPerDay = Math.max(1, Math.min(3, Math.round(cp.posts_per_week / cp.posting_days.length)));
+        }
+
+        const days = Array.isArray(cp.posting_days) ? cp.posting_days : DEFAULT_PREFERENCES.postingDays;
+        const calculatedPostsPerWeek = cp.posts_per_week ?? (postsPerDay * days.length);
+
+        const cleanStrategy: Record<string, number> = {};
+        if (cp.strategy_distribution && typeof cp.strategy_distribution === "object") {
+          for (const [k, v] of Object.entries(cp.strategy_distribution)) {
+            if (typeof v === "number" && k !== "_meta") {
+              cleanStrategy[k] = v;
+            }
+          }
+        }
+
         preferences = {
-          postsPerWeek: cp.posts_per_week ?? DEFAULT_PREFERENCES.postsPerWeek,
-          postingDays: Array.isArray(cp.posting_days) ? cp.posting_days : DEFAULT_PREFERENCES.postingDays,
+          postsPerWeek: calculatedPostsPerWeek,
+          postsPerDay,
+          postingDays: days,
           postingTime: cp.posting_time || DEFAULT_PREFERENCES.postingTime,
           contentTypes: Array.isArray(cp.content_types) ? cp.content_types : DEFAULT_PREFERENCES.contentTypes,
           strategyDistribution:
-            cp.strategy_distribution && typeof cp.strategy_distribution === "object"
-              ? cp.strategy_distribution
+            Object.keys(cleanStrategy).length > 0
+              ? cleanStrategy
               : DEFAULT_PREFERENCES.strategyDistribution,
           imageQuality: (cp.image_quality as any) || DEFAULT_PREFERENCES.imageQuality,
         };
@@ -206,16 +231,33 @@ export async function saveContentPreferences(
       if (ws) workspaceId = ws.id;
     }
 
+    const postsPerDay = Math.max(1, Math.min(3, Number(payload.postsPerDay) || 1));
+    const postingDays =
+      Array.isArray(payload.postingDays) && payload.postingDays.length > 0
+        ? payload.postingDays
+        : ["Monday", "Wednesday", "Friday"];
+    const calculatedPostsPerWeek = postsPerDay * postingDays.length;
+
+    // Ensure strategy only contains valid numbers
+    const cleanStrategy: Record<string, number> = {};
+    if (payload.strategyDistribution && typeof payload.strategyDistribution === "object") {
+      for (const [k, v] of Object.entries(payload.strategyDistribution)) {
+        if (typeof v === "number" && k !== "_meta") {
+          cleanStrategy[k] = v;
+        }
+      }
+    }
+
     if (workspaceId) {
       try {
         await supabase.from("content_preferences").upsert(
           {
             workspace_id: workspaceId,
-            posts_per_week: payload.postsPerWeek,
-            posting_days: payload.postingDays,
+            posts_per_week: calculatedPostsPerWeek,
+            posting_days: postingDays,
             posting_time: payload.postingTime,
             content_types: payload.contentTypes,
-            strategy_distribution: payload.strategyDistribution,
+            strategy_distribution: cleanStrategy,
             image_quality: payload.imageQuality || "medium",
             updated_at: new Date().toISOString(),
           },

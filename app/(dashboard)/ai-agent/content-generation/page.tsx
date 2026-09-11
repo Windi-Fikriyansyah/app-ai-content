@@ -103,8 +103,6 @@ const ALL_CONTENT_TYPES = [
   },
 ];
 
-const FREQUENCY_OPTIONS = [3, 4, 5, 7];
-
 export default function ContentGenerationPage() {
   const router = useRouter();
 
@@ -113,7 +111,8 @@ export default function ContentGenerationPage() {
   const [businessInfo, setBusinessInfo] = useState({ name: "", category: "" });
 
   // Preferences Form State
-  const [postsPerWeek, setPostsPerWeek] = useState<number>(5);
+  const [postsPerDay, setPostsPerDay] = useState<number>(1);
+  const [postsPerWeek, setPostsPerWeek] = useState<number>(7);
   const [postingDays, setPostingDays] = useState<string[]>([
     "Monday",
     "Wednesday",
@@ -128,6 +127,49 @@ export default function ContentGenerationPage() {
     "Tips",
     "Storytelling",
   ]);
+
+  // Helper to split/manage time slots according to postsPerDay (up to 3 posts/day)
+  const getTimeSlots = (timeStr: string, count: number): string[] => {
+    const defaultSlots = ["09:00", "13:00", "19:00"];
+    const parts = (timeStr || "").split(",").map((t) => t.trim()).filter(Boolean);
+    const slots: string[] = [];
+    for (let i = 0; i < count; i++) {
+      slots.push(
+        parts[i] ||
+          (count === 1
+            ? "19:00"
+            : count === 2
+            ? i === 0
+              ? "12:00"
+              : "19:00"
+            : defaultSlots[i])
+      );
+    }
+    return slots;
+  };
+
+  const handleSelectPostsPerDay = (count: number) => {
+    setPostsPerDay(count);
+    const newSlots = getTimeSlots(postingTime, count);
+    setPostingTime(newSlots.join(", "));
+    setPostsPerWeek(count * postingDays.length);
+  };
+
+  const handleUpdateTimeSlot = (index: number, newTime: string) => {
+    const currentSlots = getTimeSlots(postingTime, postsPerDay);
+    currentSlots[index] = newTime;
+    setPostingTime(currentSlots.join(", "));
+  };
+
+  const handleApplyRecommendedTimes = () => {
+    if (postsPerDay === 1) {
+      setPostingTime("19:00");
+    } else if (postsPerDay === 2) {
+      setPostingTime("12:00, 19:00");
+    } else {
+      setPostingTime("09:00, 13:00, 19:00");
+    }
+  };
 
   // Strategy Distribution State
   const [strategy, setStrategy] = useState<Record<string, number>>({
@@ -197,7 +239,12 @@ export default function ContentGenerationPage() {
         ]);
 
         if (prefRes.success && prefRes.data) {
-          setPostsPerWeek(prefRes.data.postsPerWeek);
+          const loadedPostsPerDay = prefRes.data.postsPerDay || 1;
+          setPostsPerDay(loadedPostsPerDay);
+          setPostsPerWeek(
+            prefRes.data.postsPerWeek ||
+              loadedPostsPerDay * (prefRes.data.postingDays?.length || 7)
+          );
           setPostingDays(prefRes.data.postingDays);
           setPostingTime(prefRes.data.postingTime);
           setContentTypes(prefRes.data.contentTypes);
@@ -251,6 +298,7 @@ export default function ContentGenerationPage() {
 
   // Toggle Day
   const handleToggleDay = (dayId: string) => {
+    let nextDays: string[];
     if (postingDays.includes(dayId)) {
       if (postingDays.length <= 1) {
         setFeedback({
@@ -259,10 +307,12 @@ export default function ContentGenerationPage() {
         });
         return;
       }
-      setPostingDays(postingDays.filter((d) => d !== dayId));
+      nextDays = postingDays.filter((d) => d !== dayId);
     } else {
-      setPostingDays([...postingDays, dayId]);
+      nextDays = [...postingDays, dayId];
     }
+    setPostingDays(nextDays);
+    setPostsPerWeek(postsPerDay * nextDays.length);
   };
 
   // Handle Strategy Distribution Slider change
@@ -273,7 +323,9 @@ export default function ContentGenerationPage() {
     }));
   };
 
-  const totalPercentage = Object.values(strategy).reduce((a, b) => a + b, 0);
+  const totalPercentage = Object.entries(strategy)
+    .filter(([k, v]) => typeof v === "number" && k !== "_meta")
+    .reduce((a, [_, b]) => a + (b as number), 0);
 
   // Save Preferences
   const handleSave = async (silent = false) => {
@@ -282,7 +334,8 @@ export default function ContentGenerationPage() {
 
     try {
       const payload: ContentPreferencesData = {
-        postsPerWeek,
+        postsPerWeek: postsPerDay * postingDays.length,
+        postsPerDay,
         postingDays,
         postingTime,
         contentTypes,
@@ -886,60 +939,125 @@ export default function ContentGenerationPage() {
         <div className="p-space-lg lg:p-space-xl space-y-space-xl">
           {/* Section A: Posting Frequency */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
               <div>
                 <label className="font-label-md text-label-md font-bold text-on-surface flex items-center gap-2">
                   <span>Posting Frequency</span>
-                  <span className="text-xs font-normal text-outline">
-                    (Posts per week)
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    Maksimal 3 Postingan / Hari
                   </span>
                 </label>
                 <p className="text-xs text-outline mt-0.5">
-                  Berapa banyak postingan yang ingin dibuat dan dipublikasikan AI dalam satu minggu.
+                  Tentukan intensitas postingan harian yang akan dibuat dan dijadwalkan otomatis oleh AI.
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary font-bold text-xs">
-                {postsPerWeek} Postingan / Minggu
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-xs border border-primary/20 shadow-2xs">
+                  {postsPerDay} Postingan / Hari ({postsPerDay * postingDays.length} / Minggu)
+                </span>
+              </div>
             </div>
 
-            {/* Radio Pills Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {FREQUENCY_OPTIONS.map((num) => {
-                const isSelected = postsPerWeek === num;
+            {/* Posts Per Day Options Grid (Max 3 Posts / Day) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              {[
+                {
+                  count: 1,
+                  title: "1 Postingan / Hari",
+                  subtitle: "Standard & Konsisten",
+                  desc: "Ideal untuk membangun dan menjaga kehadiran brand secara stabil.",
+                  badge: null,
+                },
+                {
+                  count: 2,
+                  title: "2 Postingan / Hari",
+                  subtitle: "Pertumbuhan Cepat",
+                  desc: "Meningkatkan engagement di jam istirahat siang dan prime time malam.",
+                  badge: "Populer",
+                },
+                {
+                  count: 3,
+                  title: "3 Postingan / Hari",
+                  subtitle: "Jangkauan Optimal",
+                  desc: "Maksimal jangkauan algoritma sepanjang hari (Pagi, Siang & Malam).",
+                  badge: "Maksimal",
+                },
+              ].map((opt) => {
+                const isSelected = postsPerDay === opt.count;
                 return (
                   <button
-                    key={num}
+                    key={opt.count}
                     type="button"
-                    onClick={() => setPostsPerWeek(num)}
-                    className={`py-3.5 px-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    onClick={() => handleSelectPostsPerDay(opt.count)}
+                    className={`p-4 rounded-xl border flex flex-col justify-between transition-all cursor-pointer text-left ${
                       isSelected
-                        ? "bg-secondary-container border-primary ring-2 ring-primary/20 text-primary font-bold shadow-xs"
+                        ? "bg-secondary-container/80 border-primary ring-2 ring-primary/25 text-primary font-bold shadow-xs"
                         : "bg-surface border-outline-variant/40 hover:border-primary/40 text-on-surface hover:bg-surface-container"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          isSelected
-                            ? "border-primary bg-primary text-white"
-                            : "border-outline-variant bg-transparent"
-                        }`}
-                      >
-                        {isSelected && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                        )}
-                      </span>
-                      <span className="text-sm font-semibold">{num} Posts</span>
+                    <div className="flex items-start justify-between w-full mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors shrink-0 ${
+                            isSelected
+                              ? "border-primary bg-primary text-white"
+                              : "border-outline-variant bg-transparent"
+                          }`}
+                        >
+                          {isSelected && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                          )}
+                        </span>
+                        <div>
+                          <span className="text-sm font-bold text-on-surface block leading-tight">
+                            {opt.title}
+                          </span>
+                          <span className="text-[11px] font-medium text-primary/80 block mt-0.5">
+                            {opt.subtitle}
+                          </span>
+                        </div>
+                      </div>
+                      {opt.badge && (
+                        <span
+                          className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                            opt.badge === "Maksimal"
+                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                              : "bg-primary/15 text-primary border border-primary/20"
+                          }`}
+                        >
+                          {opt.badge}
+                        </span>
+                      )}
                     </div>
-                    {num === 5 && (
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                        Rekomendasi
+                    <p className="text-[11px] text-outline line-clamp-2 mt-1 mb-2 font-normal">
+                      {opt.desc}
+                    </p>
+                    <div className="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[11px] w-full">
+                      <span className="text-outline font-normal">Total Mingguan:</span>
+                      <span className="font-bold text-primary">
+                        {opt.count * postingDays.length} Postingan / Minggu
                       </span>
-                    )}
+                    </div>
                   </button>
                 );
               })}
+            </div>
+
+            {/* Smart Summary Banner */}
+            <div className="mt-3.5 p-3.5 rounded-xl bg-surface-container border border-outline-variant/30 flex flex-wrap items-center justify-between gap-2.5 text-xs text-on-surface">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-4 h-4 text-primary shrink-0" />
+                <span>
+                  Konfigurasi Aktif: <strong>{postsPerDay} post per hari</strong> selama{" "}
+                  <strong>{postingDays.length} hari</strong> per minggu.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-outline">Estimasi 30 Hari:</span>
+                <span className="font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-md">
+                  ~{postsPerDay * postingDays.length * 4} Konten
+                </span>
+              </div>
             </div>
           </div>
 
@@ -1000,23 +1118,63 @@ export default function ContentGenerationPage() {
               <div>
                 <label className="font-label-md text-label-md font-bold text-on-surface flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-primary" />
-                  <span>Posting Time</span>
+                  <span>
+                    Posting Time {postsPerDay > 1 ? `(${postsPerDay} Waktu Terbit)` : ""}
+                  </span>
                 </label>
                 <p className="text-xs text-outline mt-0.5">
-                  Waktu prime time penerbitan konten (WIB).
+                  {postsPerDay === 1
+                    ? "Waktu prime time penerbitan konten (WIB)."
+                    : `Tentukan ${postsPerDay} jam tayang per hari (WIB).`}
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-surface border border-outline-variant/40 space-y-3">
-                <input
-                  type="time"
-                  value={postingTime}
-                  onChange={(e) => setPostingTime(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-container-lowest rounded-lg border border-outline-variant/40 text-base font-bold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-center tracking-widest shadow-xs"
-                />
-                <div className="flex items-center justify-between text-[11px] text-outline">
-                  <span>Rekomendasi Prime Time:</span>
-                  <span className="font-semibold text-primary">19:00 WIB</span>
+                <div
+                  className={`grid gap-2.5 ${
+                    postsPerDay === 1
+                      ? "grid-cols-1"
+                      : postsPerDay === 2
+                      ? "grid-cols-2"
+                      : "grid-cols-3"
+                  }`}
+                >
+                  {getTimeSlots(postingTime, postsPerDay).map((slotTime, idx) => (
+                    <div key={idx} className="space-y-1">
+                      <span className="text-[11px] font-semibold text-outline block">
+                        {postsPerDay === 1
+                          ? "Waktu Terbit"
+                          : idx === 0
+                          ? "Slot 1 (Pagi)"
+                          : idx === 1 && postsPerDay === 3
+                          ? "Slot 2 (Siang)"
+                          : idx === 1 && postsPerDay === 2
+                          ? "Slot 2 (Malam)"
+                          : "Slot 3 (Malam)"}
+                      </span>
+                      <input
+                        type="time"
+                        value={slotTime}
+                        onChange={(e) => handleUpdateTimeSlot(idx, e.target.value)}
+                        className="w-full px-2 py-2 bg-surface-container-lowest rounded-lg border border-outline-variant/40 text-xs font-bold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-center tracking-wider shadow-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-outline pt-2 border-t border-outline-variant/20">
+                  <span>Preset Rekomendasi:</span>
+                  <button
+                    type="button"
+                    onClick={handleApplyRecommendedTimes}
+                    className="font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    {postsPerDay === 1
+                      ? "19:00 WIB"
+                      : postsPerDay === 2
+                      ? "12:00 & 19:00"
+                      : "09:00, 13:00, 19:00"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1262,7 +1420,12 @@ export default function ContentGenerationPage() {
         <div className="p-space-lg lg:p-space-xl space-y-6">
           {/* Strategy Visual Progress Bars */}
           <div className="space-y-4">
-            {Object.entries(strategy).map(([typeName, percentage]) => {
+            {Object.entries(strategy)
+              .filter(
+                ([typeName, percentage]) =>
+                  typeof percentage === "number" && typeName !== "_meta"
+              )
+              .map(([typeName, percentage]) => {
               const colorMap: Record<string, { bar: string; text: string }> = {
                 Educational: { bar: "bg-blue-600", text: "text-blue-700" },
                 Promotional: { bar: "bg-rose-500", text: "text-rose-700" },
