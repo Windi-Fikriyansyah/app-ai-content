@@ -1,652 +1,341 @@
 import React from "react";
+import Link from "next/link";
+
+export const dynamic = "force-dynamic";
 import {
-  Zap,
-  Brain,
-  Bot,
-  TrendingUp,
-  Cpu,
-  CheckCircle2,
+  Sparkles,
+  Calendar,
   Layers,
-  BarChart2,
-  ArrowUpRight,
-  MoreVertical,
-  Clapperboard,
+  CheckCircle2,
+  TrendingUp,
   ArrowRight,
-  ArrowLeftRight,
+  Clock,
+  Send,
+  FileEdit,
   ChevronRight,
-  Globe,
-  Video,
+  Bot,
+  PlusCircle,
+  ExternalLink,
 } from "lucide-react";
+import { getDashboardDataAction } from "./dashboard-actions";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const data = await getDashboardDataAction();
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "SCHEDULED":
+        return (
+          <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-mono font-bold flex items-center gap-1">
+            <Clock className="w-3 h-3 text-blue-600" />
+            <span>SCHEDULED</span>
+          </span>
+        );
+      case "PUBLISHED":
+        return (
+          <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-mono font-bold flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+            <span>PUBLISHED</span>
+          </span>
+        );
+      case "READY FOR APPROVAL":
+      case "REVIEW":
+        return (
+          <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-mono font-bold flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-amber-600" />
+            <span>READY</span>
+          </span>
+        );
+      case "GENERATING":
+        return (
+          <span className="px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-mono font-bold animate-pulse flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
+            <span>GENERATING</span>
+          </span>
+        );
+      case "PLANNED":
+      default:
+        return (
+          <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-mono font-bold">
+            PLANNED
+          </span>
+        );
+    }
+  };
+
   return (
-    <>
-      {/* SECTION 1: WELCOME HERO & QUICK PROMPT LAUNCHER */}
-      <section className="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 sm:p-space-xl shadow-sm relative overflow-hidden">
-        {/* Subtle ambient laser glow backdrop */}
-        <div className="absolute -right-20 -top-20 w-80 h-80 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute right-40 -bottom-20 w-60 h-60 bg-tertiary-fixed-dim/15 rounded-full blur-2xl pointer-events-none"></div>
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+      {/* ═════════════════════════════════════════════════════════════
+          HEADER: Greeting & AI Status
+          "Good morning, Dapur Bu Ani 👋"
+          "Your AI is managing your content."
+          ═════════════════════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden rounded-3xl bg-surface-container-lowest border border-outline-variant/30 p-6 sm:p-8 shadow-xs">
+        {/* Soft atmospheric gradient accents */}
+        <div className="absolute -right-16 -top-16 w-72 h-72 bg-primary/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-32 -bottom-16 w-60 h-60 bg-secondary-container/40 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col gap-space-lg">
-          {/* Banner Header & Status */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-container text-primary font-label-sm text-label-sm mb-2 border border-primary/20">
-                <Zap className="w-3.5 h-3.5" />
-                <span>Autonomous Pipeline Active</span>
-              </div>
-              <h1 className="font-headline-md text-headline-sm sm:text-headline-md text-on-surface tracking-tight">
-                Halo Alex, AI Agent Anda telah mengotomatisasi{" "}
-                <span className="text-primary font-extrabold underline decoration-primary/30 underline-offset-4">
-                  48 postingan
-                </span>{" "}
-                minggu ini.
-              </h1>
-              <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-                Semua saluran berjalan sesuai jadwal. Tingkat akurasi tone Brand Kit saat ini berada di 98.4%.
-              </p>
-            </div>
-
-            {/* Quick Metrics Micro-Trio */}
-            <div className="flex items-center gap-3 sm:gap-space-md border border-outline-variant/30 p-2.5 rounded-lg bg-surface/80 shrink-0 self-start md:self-auto">
-              <div className="px-2 text-center">
-                <span className="block font-code-sm text-xs text-outline">Queue</span>
-                <span className="font-headline-sm text-headline-sm text-on-surface font-bold">12 Post</span>
-              </div>
-              <div className="w-px h-6 bg-outline-variant/30"></div>
-              <div className="px-2 text-center">
-                <span className="block font-code-sm text-xs text-outline">Saved Time</span>
-                <span className="font-headline-sm text-headline-sm text-tertiary font-bold">16.4 Jam</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Inline Prompt Bar: Autonomous Prompt Launcher */}
-          <div className="bg-surface rounded-xl border border-outline-variant/50 p-2 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-              <div className="flex items-center gap-2 px-3 text-primary shrink-0">
-                <Brain className="w-5 h-5" />
-              </div>
-              <input
-                className="flex-1 bg-transparent border-0 font-body-md text-body-md text-on-surface focus:ring-0 focus:outline-none placeholder:text-outline text-xs sm:text-sm px-2 py-1.5"
-                placeholder="Ketik ide atau topik: misal 'Buat 5 carousel LinkedIn tentang tren AI 2025 dengan tone profesional'..."
-                type="text"
-                defaultValue="Buat 5 carousel LinkedIn tentang tren AI 2025 dengan tone profesional dan studi kasus B2B SaaS"
-              />
-              <div className="flex flex-wrap items-center gap-2 justify-between md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-outline-variant/30">
-                <div className="flex items-center gap-1">
-                  <span className="px-2 py-1 rounded bg-surface-container text-on-surface-variant font-code-sm text-[11px] sm:text-xs">
-                    LinkedIn
-                  </span>
-                  <span className="px-2 py-1 rounded bg-surface-container text-on-surface-variant font-code-sm text-[11px] sm:text-xs">
-                    Carousel
-                  </span>
-                </div>
-                <button className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-primary hover:bg-primary-container text-on-primary rounded-lg font-label-md text-label-md transition-transform active:scale-[0.98] shadow-xs cursor-pointer text-xs sm:text-sm">
-                  <Zap className="w-4 h-4" />
-                  <span>Generate Cepat</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 2: KPI STATS CARDS (4 Grid Layout) */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-space-lg">
-        {/* Metric Card 1 */}
-        <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-outline transition-all">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="font-label-md text-label-md text-on-surface-variant">Total Konten Diotomatisasi</p>
-              <h3 className="font-headline-lg text-headline-lg text-on-surface mt-1 tracking-tight font-extrabold">
-                1,284
-              </h3>
-            </div>
-            <div className="w-9 h-9 rounded-lg bg-surface-container text-primary flex items-center justify-center">
-              <Bot className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
-            <span className="inline-flex items-center font-label-sm text-label-sm text-tertiary font-bold">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              +18.4%
-            </span>
-            <span className="text-outline font-body-sm text-body-sm">dibanding bulan lalu</span>
-          </div>
-        </div>
-
-        {/* Metric Card 2 */}
-        <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-outline transition-all">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="font-label-md text-label-md text-on-surface-variant">AI Agent Runs</p>
-              <h3 className="font-headline-lg text-headline-lg text-on-surface mt-1 tracking-tight font-extrabold">
-                342
-              </h3>
-            </div>
-            <div className="w-9 h-9 rounded-lg bg-secondary-container text-primary flex items-center justify-center">
-              <Cpu className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
-            <span className="inline-flex items-center font-label-sm text-label-sm text-tertiary font-bold">
-              <CheckCircle2 className="w-4 h-4 mr-1" />
-              99.2% Sukses
-            </span>
-            <span className="text-outline font-body-sm text-body-sm">eksekusi tanpa galat</span>
-          </div>
-        </div>
-
-        {/* Metric Card 3 */}
-        <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-outline transition-all">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="font-label-md text-label-md text-on-surface-variant">Jadwal Antrean Aktif</p>
-              <h3 className="font-headline-lg text-headline-lg text-on-surface mt-1 tracking-tight font-extrabold">
-                38 <span className="font-headline-sm text-headline-sm text-outline font-normal">konten</span>
-              </h3>
-            </div>
-            <div className="w-9 h-9 rounded-lg bg-surface-container text-primary flex items-center justify-center">
-              <Layers className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant">
-              <span>IG · LinkedIn · 𝕏 · TT</span>
-            </div>
-            <span className="text-tertiary font-label-sm font-semibold">Ready to post</span>
-          </div>
-        </div>
-
-        {/* Metric Card 4 */}
-        <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-outline transition-all">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="font-label-md text-label-md text-on-surface-variant">Rata-rata Engagement</p>
-              <h3 className="font-headline-lg text-headline-lg text-on-surface mt-1 tracking-tight font-extrabold">
-                5.8%
-              </h3>
-            </div>
-            <div className="w-9 h-9 rounded-lg bg-surface-variant text-primary flex items-center justify-center">
-              <BarChart2 className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs">
-            <span className="inline-flex items-center font-label-sm text-label-sm text-tertiary font-bold">
-              <ArrowUpRight className="w-4 h-4 mr-0.5" />
-              +2.1%
-            </span>
-            <span className="text-outline font-body-sm text-body-sm">vs konten non-AI</span>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 3: MAIN PIPELINE & LIVE AGENT ACTIVITY (COL-8 / COL-4) */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
-        {/* Left: Jadwal & Saluran Aktif (Content Pipeline) - Col 8 */}
-        <div className="lg:col-span-8 flex flex-col gap-space-base">
-          {/* Section Header Card */}
-          <div className="bg-surface-container-lowest p-4 sm:p-space-lg rounded-xl border border-outline-variant/30 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-space-md border-b border-outline-variant/20">
-              <div>
-                <h2 className="font-headline-sm text-headline-sm text-on-surface">
-                  Jadwal & Saluran Aktif (Content Pipeline)
-                </h2>
-                <p className="font-body-sm text-body-sm text-outline">
-                  Distribusi otomasi omni-channel sepanjang minggu ini
-                </p>
-              </div>
-              {/* Filter Tags */}
-              <div className="flex items-center gap-1.5 overflow-x-auto shrink-0 pb-1 sm:pb-0">
-                <button className="px-2.5 py-1 rounded bg-secondary-container text-primary font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
-                  Semua (38)
-                </button>
-                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
-                  Review (4)
-                </button>
-                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
-                  Terjadwal (18)
-                </button>
-                <button className="px-2.5 py-1 rounded bg-surface hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap cursor-pointer">
-                  Tayang (16)
-                </button>
-              </div>
-            </div>
-
-            {/* Mini Calendar Horizon Strip */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 pt-space-md pb-space-sm min-w-0 overflow-x-auto">
-              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">SEN</span>
-                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">24</span>
-                <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-tertiary"></span>
-              </div>
-              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">SEL</span>
-                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">25</span>
-                <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-tertiary"></span>
-              </div>
-              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-primary text-on-primary shadow-xs">
-                <span className="block font-label-sm text-[10px] sm:text-label-sm opacity-80">RAB</span>
-                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold">26</span>
-                <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-white"></span>
-              </div>
-              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">KAM</span>
-                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">27</span>
-                <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-primary-container"></span>
-              </div>
-              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">JUM</span>
-                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">28</span>
-                <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-primary-container"></span>
-              </div>
-              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">SAB</span>
-                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">29</span>
-                <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-outline-variant"></span>
-              </div>
-              <div className="text-center p-1.5 sm:p-2 rounded-lg bg-surface border border-outline-variant/20">
-                <span className="block font-label-sm text-[10px] sm:text-label-sm text-outline">MIN</span>
-                <span className="font-headline-sm text-sm sm:text-headline-sm font-bold text-on-surface">30</span>
-                <span className="block mt-1 w-1.5 h-1.5 mx-auto rounded-full bg-outline-variant"></span>
-              </div>
-            </div>
-
-            {/* Pipeline Cards Stream */}
-            <div className="space-y-space-md mt-space-md">
-              {/* Card 1: Instagram Carousel - Draft Dihasilkan AI */}
-              <div className="p-space-md rounded-lg border border-outline-variant/40 bg-surface/50 hover:bg-surface-container-lowest hover:border-primary/50 transition-all flex flex-col sm:flex-row gap-space-md">
-                <div className="w-full sm:w-28 h-28 sm:h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
-                  <img
-                    className="w-full h-full object-cover"
-                    alt="Social media carousel slide mockup"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkrVVUTWG72M-gxggHBJbGnqEfBE03z-X89iXiS9hoTiabcvt4hjchNJJ6Cu63RKp1wMj4tjAjN-7ulhnWfYseMOnEEn-s930f-xQlMotv2BuJEkmEwUaeTIEedR3wh9BMGAcVLZL7sMXog88iIN27_b1MmKnHYI7XktB2ETFDNYH_78yEk-8lTOn9ZWEApI75r3YLtZ7MpkCDC0---KSPIVKn7QXtcopnqh30bki1S9ZoPa6SCjNr"
-                  />
-                  <span className="absolute bottom-1 right-1 bg-black/60 text-white font-code-sm text-[9px] px-1 rounded">
-                    5 Slides
-                  </span>
-                </div>
-                <div className="flex-1 flex flex-col justify-between">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200 font-label-sm text-[11px] font-semibold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-pink-500"></span>
-                          Instagram Carousel
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-secondary-container text-primary font-label-sm text-[11px] font-medium">
-                          Draft Dihasilkan AI
-                        </span>
-                      </div>
-                      <h4 className="font-headline-sm text-sm font-bold text-on-surface mt-1.5">
-                        7 Strategi Growth Marketing Menggunakan AI Agents di 2025
-                      </h4>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mt-0.5">
-                        Slide 1: Pengantar Autonomous Funnel. Slide 2: Dynamic Segmentation. Slide 3: Automated Ad Copy...
-                      </p>
-                    </div>
-                    <button className="p-1 text-outline hover:text-on-surface cursor-pointer">
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/20 text-xs">
-                    <div className="flex items-center gap-2 text-outline font-label-sm">
-                      <Bot className="w-4 h-4 text-primary" />
-                      <span>
-                        Oleh: <strong className="text-on-surface">Agent Copywriter v2.4</strong>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-code-sm text-code-sm text-outline">Jadwal: Besok, 10:00 WIB</span>
-                      <button className="px-2.5 py-1 bg-primary text-white rounded font-label-sm text-xs hover:bg-primary-container cursor-pointer">
-                        Review
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: TikTok Video Script - Menunggu Review Brand Kit */}
-              <div className="p-space-md rounded-lg border border-outline-variant/40 bg-surface/50 hover:bg-surface-container-lowest hover:border-primary/50 transition-all flex flex-col sm:flex-row gap-space-md">
-                <div className="w-full sm:w-28 h-28 sm:h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
-                  <img
-                    className="w-full h-full object-cover"
-                    alt="Video recording studio setup"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzTjaOlGgzjSf6SPPYOQ_DNAcjbksdAxUSXfP8AO-nyDCF5F1Dpj7Im092wpqtgkjdEj088HgC-DcxX3T6z9CRJSCTtS91vdV8ID8jxwjrdb6iLFTgsEWiOyCSAemxwbcJ4TzJTj-1jVwXRX2CvB19AZjqekn50CdS3bwIh1rnWzpbOtj8YhxjPWSpnqFGSH9JY8PtuiE09I_Y9KZ4Kx0tSe3ID9HPCfi4apBW4Su6L_TJhapSeNIF"
-                  />
-                  <span className="absolute bottom-1 right-1 bg-black/60 text-white font-code-sm text-[9px] px-1 rounded">
-                    00:45s
-                  </span>
-                </div>
-                <div className="flex-1 flex flex-col justify-between">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-900 border border-slate-300 font-label-sm text-[11px] font-semibold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
-                          TikTok Video Script
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-label-sm text-[11px] font-medium">
-                          Menunggu Review Brand Kit
-                        </span>
-                      </div>
-                      <h4 className="font-headline-sm text-sm font-bold text-on-surface mt-1.5">
-                        Hook 3 Detik: &ldquo;Stop Bikin Konten Manual Kalau Mau Scale Up Bisnis!&rdquo;
-                      </h4>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mt-0.5">
-                        Audio: Trending Sound #B2BGrowth. Visual Cue: Tunjukkan dashboard auto-publish berkecepatan tinggi...
-                      </p>
-                    </div>
-                    <button className="p-1 text-outline hover:text-on-surface cursor-pointer">
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/20 text-xs">
-                    <div className="flex items-center gap-2 text-outline font-label-sm">
-                      <Clapperboard className="w-4 h-4 text-primary" />
-                      <span>
-                        Oleh: <strong className="text-on-surface">Agent ScriptGen v1.8</strong>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-code-sm text-code-sm text-outline">Jadwal: 27 Feb, 19:30 WIB</span>
-                      <button className="px-2.5 py-1 bg-surface-container hover:bg-surface-variant text-on-surface rounded font-label-sm text-xs cursor-pointer">
-                        Approve Tone
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 3: LinkedIn Thought Leadership - Terjadwal Otomatis */}
-              <div className="p-space-md rounded-lg border border-outline-variant/40 bg-surface/50 hover:bg-surface-container-lowest hover:border-primary/50 transition-all flex flex-col sm:flex-row gap-space-md">
-                <div className="w-full sm:w-28 h-28 sm:h-24 rounded-lg bg-surface-container-high overflow-hidden relative shrink-0">
-                  <img
-                    className="w-full h-full object-cover"
-                    alt="Corporate editorial metrics chart"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7JhktxiujhFqxpUpG-fOs_MOXx3ZDOqWasfBtKR6TAVAhzGwrQq7crqDC1K3JBqSb6Ol5fvp9q5tgpR4d8j-sLcrN-M-cVXH1zhKLDEajfbt9B6XTrcY-FZiclhwKw9g-X-G_Wk-TqslA_-xocEJDsXC_W6IWIXy6T2GjNU5aFXB0xhr8i5AcrZETZT5D2fXBoVfdK3H3kcB7h791fAFv2LCEGgvuL8_3rFSoo_YUcZAUpGDB3ghT"
-                  />
-                  <span className="absolute bottom-1 right-1 bg-primary text-white font-code-sm text-[9px] px-1 rounded">
-                    Auto-Queue
-                  </span>
-                </div>
-                <div className="flex-1 flex flex-col justify-between">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-label-sm text-[11px] font-semibold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                          LinkedIn Thought Leadership
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-label-sm text-[11px] font-medium">
-                          Terjadwal Otomatis
-                        </span>
-                      </div>
-                      <h4 className="font-headline-sm text-sm font-bold text-on-surface mt-1.5">
-                        Mengapa 78% Head of Marketing Berpindah ke Model Autonomous Content Ops
-                      </h4>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mt-0.5">
-                        Analisis data 500 startup Seri A: bagaimana efisiensi tim meningkat 4x lipat tanpa menambah headcount...
-                      </p>
-                    </div>
-                    <button className="p-1 text-outline hover:text-on-surface cursor-pointer">
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/20 text-xs">
-                    <div className="flex items-center gap-2 text-outline font-label-sm">
-                      <Zap className="w-4 h-4 text-primary" />
-                      <span>
-                        Oleh: <strong className="text-on-surface">Agent ExecutiveGhost v3.1</strong>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-code-sm text-code-sm text-tertiary font-semibold">
-                        Tayang Otomatis: 28 Feb, 08:30 WIB
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Aktivitas AI Agent Real-Time - Col 4 */}
-        <div className="lg:col-span-4 flex flex-col gap-space-base">
-          <div className="bg-surface-container-lowest p-4 sm:p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col h-full">
-            {/* Feed Header with Live Radar Indicator */}
-            <div className="flex items-center justify-between pb-space-md border-b border-outline-variant/20">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-tertiary"></span>
-                </span>
-                <h3 className="font-headline-sm text-headline-sm text-on-surface">Aktivitas AI Agent</h3>
-              </div>
-              <span className="font-code-sm text-[11px] px-2 py-0.5 rounded bg-surface text-outline border border-outline-variant/30">
-                Live stream
-              </span>
-            </div>
-
-            {/* Real-Time Activity Log List */}
-            <div className="relative pl-6 space-y-6 mt-space-lg flex-1 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-outline-variant/40">
-              {/* Log Item 1 */}
-              <div className="relative group">
-                <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface-container-lowest"></div>
-                <div className="flex flex-col">
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm font-bold text-primary">Agent TrendWatcher</span>
-                    <span className="font-code-sm text-[11px] text-outline">2 mnt lalu</span>
-                  </div>
-                  <p className="font-body-sm text-body-sm text-on-surface mt-1 leading-snug">
-                    Mendeteksi lonjakan topik viral di LinkedIn:{" "}
-                    <strong className="text-primary font-code-sm">#MarketingAutomation</strong> (+340% volume percakapan).
-                  </p>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <span className="px-1.5 py-0.5 bg-surface text-outline font-label-sm text-[10px] rounded border border-outline-variant/30">
-                      Auto-Brief dibuat
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Log Item 2 */}
-              <div className="relative group">
-                <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-tertiary ring-4 ring-surface-container-lowest"></div>
-                <div className="flex flex-col">
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm font-bold text-on-surface">Agent Copywriter</span>
-                    <span className="font-code-sm text-[11px] text-outline">15 mnt lalu</span>
-                  </div>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-1 leading-snug">
-                    Menyelesaikan 3 variasi caption & call-to-action untuk kampanye{" "}
-                    <span className="font-medium text-on-surface">Produk X</span>.
-                  </p>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <span className="px-1.5 py-0.5 bg-tertiary-fixed-dim/20 text-tertiary font-label-sm text-[10px] rounded">
-                      Ready for review
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Log Item 3 */}
-              <div className="relative group">
-                <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-surface-container-lowest"></div>
-                <div className="flex flex-col">
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm font-bold text-on-surface">Agent Scheduler</span>
-                    <span className="font-code-sm text-[11px] text-outline">1 jam lalu</span>
-                  </div>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-1 leading-snug">
-                    Berhasil mempublikasikan thread di <strong className="text-on-surface">𝕏 (Twitter)</strong>: &ldquo;5 Cara Automasi Konten B2B&rdquo;.
-                  </p>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-label-sm text-[10px] rounded border border-blue-200">
-                      2.4k views · 48 retweets
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Log Item 4 */}
-              <div className="relative group">
-                <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-primary-container ring-4 ring-surface-container-lowest"></div>
-                <div className="flex flex-col">
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm font-bold text-on-surface">Agent ImageGen</span>
-                    <span className="font-code-sm text-[11px] text-outline">2 jam lalu</span>
-                  </div>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-1 leading-snug">
-                    Selesai merender 4 aset visual banner SVG & WebP disesuaikan dengan palet warna{" "}
-                    <strong className="text-on-surface">Brand Kit</strong>.
-                  </p>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <span className="px-1.5 py-0.5 bg-surface text-outline font-label-sm text-[10px] rounded border border-outline-variant/30">
-                      Asset library updated
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Agent Performance Health Bar */}
-            <div className="mt-space-lg pt-space-md border-t border-outline-variant/20 bg-surface -mx-4 -mb-4 sm:-mx-space-lg sm:-mb-space-lg p-space-md rounded-b-xl">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-label-sm text-label-sm text-on-surface font-semibold">
-                  Autonomous Cluster Load
-                </span>
-                <span className="font-code-sm text-code-sm text-tertiary font-bold">Optimal (34ms)</span>
-              </div>
-              <div className="w-full bg-outline-variant/30 h-1.5 rounded-full overflow-hidden mt-2">
-                <div className="bg-tertiary h-full rounded-full" style={{ width: "28%" }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 4: ALUR OTOMATISASI POPULER (Quick Trigger Workflow Cards) */}
-      <section className="flex flex-col gap-space-md pb-space-2xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h3 className="font-headline-sm text-headline-sm text-on-surface">Alur Otomatisasi Populer</h3>
-            <p className="font-body-sm text-body-sm text-outline">
-              Jalankan resep pipeline instan untuk melipatgandakan output konten Anda
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs mb-3 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>AI Content Engine Active</span>
+            </div>
+
+            <h1 className="font-headline-lg text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+              {data.greetingTime}, {data.businessName} 👋
+            </h1>
+
+            <p className="font-body-md text-base sm:text-lg text-outline mt-1 font-medium">
+              Your AI is managing your content.
             </p>
           </div>
-          <button className="text-primary hover:underline font-label-md text-label-md flex items-center gap-1 cursor-pointer">
-            <span>Lihat Semua Workflow</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
-          {/* Workflow 1: Blog-to-Social Multi-Format */}
-          <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-primary/60 hover:shadow-md transition-all group">
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-lg bg-secondary-container text-primary flex items-center justify-center">
-                  <ArrowLeftRight className="w-5 h-5" />
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-surface-container text-primary font-code-sm text-[11px] font-semibold">
-                  RSS Trigger
-                </span>
-              </div>
-              <h4 className="font-headline-sm text-base font-bold text-on-surface mt-space-md group-hover:text-primary transition-colors">
-                Blog-to-Social Multi-Format
-              </h4>
-              <p className="font-body-sm text-body-sm text-on-surface-variant mt-1.5 leading-relaxed">
-                Mendeteksi postingan artikel baru via RSS Feed, otomatis mengekstrak poin penting, dan menjadwalkan Carousel IG + Thread Twitter.
-              </p>
-              {/* Trigger Visual Micro Chain */}
-              <div className="mt-4 p-2.5 rounded-lg bg-surface border border-outline-variant/20 flex flex-wrap items-center justify-between gap-1 text-[11px] font-code-sm text-outline">
-                <span>RSS Feed</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-                <span>AI Repurposing</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-                <span>Auto-Calendar</span>
-              </div>
-            </div>
-            <div className="mt-6 pt-3 border-t border-outline-variant/20 flex items-center justify-between">
-              <span className="text-xs font-label-sm text-outline">Aktif di 3 channel</span>
-              <button className="px-3 py-1.5 rounded-lg bg-surface hover:bg-primary hover:text-white text-on-surface font-label-md text-label-md border border-outline-variant/30 transition-colors cursor-pointer">
-                Trigger Run
-              </button>
-            </div>
-          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/ai-agent/content-generation"
+              className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shadow-xs cursor-pointer active:scale-98"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Buat Rencana 30 Hari</span>
+            </Link>
 
-          {/* Workflow 2: Daily Trending News Curator */}
-          <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-primary/60 hover:shadow-md transition-all group">
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-lg bg-tertiary-fixed-dim/20 text-tertiary flex items-center justify-center">
-                  <Globe className="w-5 h-5" />
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-code-sm text-[11px] font-semibold">
-                  Daily Cron
-                </span>
-              </div>
-              <h4 className="font-headline-sm text-base font-bold text-on-surface mt-space-md group-hover:text-primary transition-colors">
-                Daily Trending News Curator
-              </h4>
-              <p className="font-body-sm text-body-sm text-on-surface-variant mt-1.5 leading-relaxed">
-                Menyisir Google Trends & Twitter Search setiap pagi, membuat draf rangkuman 150 kata, dan mengirim notifikasi review ke Telegram.
-              </p>
-              {/* Trigger Visual Micro Chain */}
-              <div className="mt-4 p-2.5 rounded-lg bg-surface border border-outline-variant/20 flex items-center justify-between text-[11px] font-code-sm text-outline">
-                <span>Google Trends</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-                <span>Draft Summary</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-                <span>Telegram Bot</span>
-              </div>
-            </div>
-            <div className="mt-6 pt-3 border-t border-outline-variant/20 flex items-center justify-between">
-              <span className="text-xs font-label-sm text-outline">Pukul 07:00 WIB</span>
-              <button className="px-3 py-1.5 rounded-lg bg-surface hover:bg-primary hover:text-white text-on-surface font-label-md text-label-md border border-outline-variant/30 transition-colors cursor-pointer">
-                Trigger Run
-              </button>
-            </div>
-          </div>
-
-          {/* Workflow 3: Weekly Video Script & Hooks Generator */}
-          <div className="bg-surface-container-lowest p-space-lg rounded-xl border border-outline-variant/30 shadow-sm flex flex-col justify-between hover:border-primary/60 hover:shadow-md transition-all group">
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-lg bg-surface-variant text-primary flex items-center justify-center">
-                  <Video className="w-5 h-5" />
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-surface-container text-primary font-code-sm text-[11px] font-semibold">
-                  Scheduled
-                </span>
-              </div>
-              <h4 className="font-headline-sm text-base font-bold text-on-surface mt-space-md group-hover:text-primary transition-colors">
-                Weekly Video Script & Hooks
-              </h4>
-              <p className="font-body-sm text-body-sm text-on-surface-variant mt-1.5 leading-relaxed">
-                Menghasilkan paket 5 ide script video pendek TikTok / Reels lengkap dengan 3 variasi hook pembuka visual & copywriting persuasif.
-              </p>
-              {/* Trigger Visual Micro Chain */}
-              <div className="mt-4 p-2.5 rounded-lg bg-surface border border-outline-variant/20 flex items-center justify-between text-[11px] font-code-sm text-outline">
-                <span>Senin 09:00</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-                <span>5 Hooks Gen</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-                <span>Notion Ready</span>
-              </div>
-            </div>
-            <div className="mt-6 pt-3 border-t border-outline-variant/20 flex items-center justify-between">
-              <span className="text-xs font-label-sm text-outline">Tiap Senin pagi</span>
-              <button className="px-3 py-1.5 rounded-lg bg-surface hover:bg-primary hover:text-white text-on-surface font-label-md text-label-md border border-outline-variant/30 transition-colors cursor-pointer">
-                Trigger Run
-              </button>
-            </div>
+            <Link
+              href="/content-calendar"
+              className="px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface hover:bg-surface-container text-on-surface font-bold text-xs sm:text-sm transition-colors flex items-center gap-2 cursor-pointer shadow-2xs"
+            >
+              <Calendar className="w-4 h-4 text-outline" />
+              <span>Buka Kalender</span>
+            </Link>
           </div>
         </div>
       </section>
-    </>
+
+      {/* ═════════════════════════════════════════════════════════════
+          STATISTICS CARDS (4 GRID)
+          ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+          │ 30     │ │ 12     │ │ 8      │ │ 7.3%   │
+          │ Plans  │ │ Queued │ │Published│ │ Engage │
+          └────────┘ └────────┘ └────────┘ └────────┘
+          ═════════════════════════════════════════════════════════════ */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Plans */}
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/30 shadow-xs hover:border-primary/40 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-semibold text-outline">Plans</span>
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <Calendar className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="font-headline-lg text-2xl sm:text-4xl font-extrabold text-on-surface tracking-tight">
+              {data.stats.totalPlans}
+            </div>
+            <p className="text-[11px] text-outline mt-0.5">Total postingan direncanakan</p>
+          </div>
+        </div>
+
+        {/* Card 2: Queued */}
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/30 shadow-xs hover:border-blue-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-semibold text-outline">Queued</span>
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Layers className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="font-headline-lg text-2xl sm:text-4xl font-extrabold text-blue-600 tracking-tight">
+              {data.stats.queuedCount}
+            </div>
+            <p className="text-[11px] text-outline mt-0.5">Siap & terjadwal di antrean</p>
+          </div>
+        </div>
+
+        {/* Card 3: Published */}
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/30 shadow-xs hover:border-emerald-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-semibold text-outline">Published</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="font-headline-lg text-2xl sm:text-4xl font-extrabold text-emerald-600 tracking-tight">
+              {data.stats.publishedCount}
+            </div>
+            <p className="text-[11px] text-outline mt-0.5">Berhasil terbit di Instagram</p>
+          </div>
+        </div>
+
+        {/* Card 4: Engage */}
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/30 shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-semibold text-outline">Engage</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="font-headline-lg text-2xl sm:text-4xl font-extrabold text-amber-600 tracking-tight">
+              {data.stats.engagementRate}
+            </div>
+            <p className="text-[11px] text-outline mt-0.5">Rata-rata interaksi audiens</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ═════════════════════════════════════════════════════════════
+          UPCOMING CONTENT LIST & PIPELINE
+          Sep 11  Tips memilih nasi box       SCHEDULED
+          Sep 13  Behind the scenes            PLANNED
+          Sep 16  Tips catering                PLANNED
+          ═════════════════════════════════════════════════════════════ */}
+      <section className="bg-surface-container-lowest rounded-3xl border border-outline-variant/30 p-5 sm:p-7 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-outline-variant/20">
+          <div>
+            <h2 className="font-headline-sm text-lg sm:text-xl font-extrabold text-on-surface">
+              Upcoming Content
+            </h2>
+            <p className="text-xs sm:text-sm text-outline mt-0.5">
+              Jadwal postingan terdekat yang akan dibuat dan dipublikasikan otomatis oleh AI
+            </p>
+          </div>
+
+          <Link
+            href="/content-calendar"
+            className="text-primary hover:underline font-bold text-xs sm:text-sm flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+          >
+            <span>Lihat Semua Jadwal</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {/* Content Rows */}
+        <div className="divide-y divide-outline-variant/20 mt-2">
+          {data.upcomingPosts.length > 0 ? (
+            data.upcomingPosts.map((post) => (
+              <div
+                key={post.id}
+                className="py-3.5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface/50 px-2 rounded-xl transition-colors group"
+              >
+                {/* Date & Title */}
+                <div className="flex items-start sm:items-center gap-3.5 sm:gap-5 flex-1 min-w-0">
+                  {/* Date Column: "Sep 11" */}
+                  <div className="w-14 sm:w-16 shrink-0 text-left">
+                    <span className="block font-bold text-on-surface text-sm sm:text-base font-mono leading-tight">
+                      {post.monthStr} {post.dayStr}
+                    </span>
+                    <span className="block text-[11px] text-outline font-mono">
+                      {post.scheduled_time || "19:00"} WIB
+                    </span>
+                  </div>
+
+                  {/* Title & Format Tag */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-on-surface text-xs sm:text-sm truncate group-hover:text-primary transition-colors">
+                        {post.title}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] text-outline font-medium truncate">
+                        Topik: {post.topic}
+                      </span>
+                      <span className="text-outline/40">·</span>
+                      <span className="text-[10px] px-2 py-0.2 rounded-md bg-surface-container font-semibold text-outline">
+                        {post.format}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Column */}
+                <div className="flex items-center justify-between sm:justify-end gap-3 pl-16 sm:pl-0">
+                  {getStatusBadge(post.status)}
+
+                  <Link
+                    href="/content-calendar"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-surface-container text-outline hover:text-primary cursor-pointer hidden sm:block"
+                    title="Buka detail di kalender"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-12 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-surface-container text-outline flex items-center justify-center mx-auto">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <p className="font-bold text-sm text-on-surface">Belum ada konten terjadwal</p>
+              <p className="text-xs text-outline max-w-sm mx-auto">
+                Buat perencanaan 30 hari pertama Anda dengan satu klik menggunakan AI Agent.
+              </p>
+              <Link
+                href="/ai-agent/content-generation"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-bold text-xs shadow-xs hover:bg-primary-container"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Rencanakan Konten Sekarang</span>
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ═════════════════════════════════════════════════════════════
+          QUICK ACTION SHORTCUTS (Bottom Banner)
+          ═════════════════════════════════════════════════════════════ */}
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+        <Link
+          href="/ai-agent/content-generation"
+          className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 hover:border-primary/50 transition-all flex items-center gap-3.5 group cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+            <Bot className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="font-bold text-xs sm:text-sm text-on-surface group-hover:text-primary transition-colors truncate">
+              AI Content Planner
+            </h4>
+            <p className="text-[11px] text-outline truncate">Generate ide kalender 30 hari</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-outline group-hover:text-primary transition-colors shrink-0" />
+        </Link>
+
+        <Link
+          href="/content-library"
+          className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 hover:border-primary/50 transition-all flex items-center gap-3.5 group cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="font-bold text-xs sm:text-sm text-on-surface group-hover:text-primary transition-colors truncate">
+              Content Library
+            </h4>
+            <p className="text-[11px] text-outline truncate">Semua aset caption & visual</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-outline group-hover:text-primary transition-colors shrink-0" />
+        </Link>
+
+        <Link
+          href="/social-accounts"
+          className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 hover:border-primary/50 transition-all flex items-center gap-3.5 group cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+            <Send className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="font-bold text-xs sm:text-sm text-on-surface group-hover:text-primary transition-colors truncate">
+              Zernio Publishing
+            </h4>
+            <p className="text-[11px] text-outline truncate">Koneksi akun Instagram</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-outline group-hover:text-primary transition-colors shrink-0" />
+        </Link>
+      </section>
+    </div>
   );
 }

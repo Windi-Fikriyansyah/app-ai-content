@@ -8,7 +8,6 @@ import {
   Sparkles,
   X,
   ChevronsUpDown,
-  PlusCircle,
   LayoutDashboard,
   Bot,
   FileEdit,
@@ -52,7 +51,8 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const [isAiAgentOpen, setIsAiAgentOpen] = useState(true);
+  // Default tertutup saat halaman di-refresh, hanya terbuka jika user memang sedang membuka halaman /ai-agent
+  const [isAiAgentOpen, setIsAiAgentOpen] = useState(() => pathname.startsWith("/ai-agent"));
 
   const navItems: NavItem[] = [
     {
@@ -185,12 +185,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             </div>
             <ChevronsUpDown className="w-4 h-4 text-outline shrink-0" />
           </div>
-
-          {/* New Workflow Quick Action CTA */}
-          <button className="w-full flex items-center justify-center gap-space-sm bg-primary hover:bg-primary-container text-on-primary rounded-lg py-2.5 px-space-md font-label-md text-label-md shadow-sm transition-transform active:scale-[0.98] cursor-pointer">
-            <PlusCircle className="w-4 h-4" />
-            <span>New Workflow</span>
-          </button>
 
           {/* Navigation Tabs (9 Items) */}
           <nav className="flex flex-col gap-1">

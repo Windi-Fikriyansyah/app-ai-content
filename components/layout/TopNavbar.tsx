@@ -6,8 +6,6 @@ import {
   Search,
   Bell,
   HelpCircle,
-  SlidersHorizontal,
-  Sparkles,
 } from "lucide-react";
 
 interface TopNavbarProps {
@@ -64,20 +62,6 @@ export default function TopNavbar({ onMenuClick }: TopNavbarProps) {
             <HelpCircle className="w-5 h-5" />
           </button>
         </div>
-
-        <div className="hidden sm:block h-6 w-px bg-outline-variant/40 mx-1"></div>
-
-        {/* Secondary CTA: Buat Workflow Baru */}
-        <button className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant/50 bg-surface-container-lowest hover:bg-surface text-on-surface font-label-md text-label-md shadow-xs transition-all cursor-pointer">
-          <SlidersHorizontal className="w-4 h-4 text-outline" />
-          <span>+ Buat Workflow</span>
-        </button>
-
-        {/* Trailing Primary Action: AI Generate Button */}
-        <button className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-lg font-label-md text-label-md shadow-sm hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer">
-          <Sparkles className="w-4 h-4 shrink-0" />
-          <span className="text-xs sm:text-sm font-medium">AI Generate</span>
-        </button>
       </div>
     </header>
   );
