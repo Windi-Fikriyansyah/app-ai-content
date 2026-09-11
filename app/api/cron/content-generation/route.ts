@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { runLazyGenerationForPost } from "@/lib/ai/lazy-generator";
 import { BusinessContext } from "@/lib/ai/planner";
+import { checkIsAutoApproveEnabled } from "@/app/(dashboard)/auto-approve-actions";
+import { enqueueZernioDispatch } from "@/lib/queue/queues";
 
 /**
  * 41. Cron System: Lazy Generation Scheduler
@@ -136,10 +138,50 @@ async function handleCron(request: NextRequest) {
         })
         .eq("id", post.id);
 
+      let finalPostStatus = genResult.status;
+
+      // Auto-Approve check: If status is READY FOR APPROVAL and auto-approve is active, immediately schedule to Zernio
+      if (genResult.status === "READY FOR APPROVAL") {
+        try {
+          const isAutoApprove = await checkIsAutoApproveEnabled(supabase, undefined, workspaceId);
+          if (isAutoApprove) {
+            console.log(`[Cron:content-generation] ⚡ Auto-Approve is ACTIVE for post ${post.id}. Scheduling to Zernio...`);
+            await supabase
+              .from("content_posts")
+              .update({ status: "APPROVED" })
+              .eq("id", post.id);
+
+            const dispatchJob = await enqueueZernioDispatch({
+              postId: post.id,
+              workspaceId,
+              action: "create_scheduled_post",
+            });
+
+            await supabase
+              .from("content_posts")
+              .update({
+                status: "SCHEDULED",
+                ai_review: {
+                  ...(genResult.aiReview || {}),
+                  dispatch_job_id: dispatchJob.jobId,
+                  queued_at: new Date().toISOString(),
+                  auto_approved: true,
+                },
+              })
+              .eq("id", post.id);
+
+            finalPostStatus = "SCHEDULED";
+            console.log(`[Cron:content-generation] 🚀 Auto-Approve dispatched to Zernio BullMQ. Job: ${dispatchJob.jobId}`);
+          }
+        } catch (cronApproveErr) {
+          console.warn("[Cron:content-generation] Auto-approve error:", cronApproveErr);
+        }
+      }
+
       results.push({
         id: post.id,
         title: post.title,
-        status: genResult.status,
+        status: finalPostStatus,
         captionStatus: genResult.captionStatus,
         imageStatus: genResult.imageStatus,
       });

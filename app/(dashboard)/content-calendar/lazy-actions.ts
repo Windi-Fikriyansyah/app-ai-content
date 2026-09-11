@@ -10,6 +10,7 @@ import {
   runAIReviewer,
   type ImageGenerationResult,
 } from "@/lib/ai/lazy-generator";
+import { checkIsAutoApproveEnabled } from "@/app/(dashboard)/auto-approve-actions";
 
 /**
  * Trigger Lazy Generation for a Single Post (Aha Moment / H-1 testing)
@@ -177,6 +178,31 @@ export async function triggerSinglePostLazyGenAction(
     if (updateErr) {
       console.error("Error updating content_posts after Lazy Gen:", updateErr);
       return { success: false, error: "Gagal menyimpan hasil generasi ke database." };
+    }
+
+    // 9. Auto-Approve check: If status is READY FOR APPROVAL and auto-approve is active, immediately approve
+    if (result.status === "READY FOR APPROVAL") {
+      try {
+        const isAutoApprove = await checkIsAutoApproveEnabled(supabase, user.id, workspaceId);
+        if (isAutoApprove) {
+          console.log(`[AutoApprove] ⚡ Auto-Approve is ACTIVE for post ${postId}. Automatically approving to Zernio...`);
+          const approveRes = await approvePostAction(postId);
+          if (approveRes.success) {
+            const { data: approvedPost } = await supabase
+              .from("content_posts")
+              .select("*")
+              .eq("id", postId)
+              .maybeSingle();
+            if (approvedPost) {
+              updatedPost = approvedPost;
+            }
+          }
+        } else {
+          console.log(`[AutoApprove] ⏸️ Auto-Approve is OFF for post ${postId}. Waiting for manual user approval.`);
+        }
+      } catch (autoErr) {
+        console.warn("[AutoApprove] Error during lazy gen auto-approve check:", autoErr);
+      }
     }
 
     revalidatePath("/content-calendar");
@@ -829,6 +855,28 @@ export async function retrySinglePostImageAction(
           updatedPost = retry.data;
         }
 
+        if (hasCaption) {
+          try {
+            const isAutoApprove = await checkIsAutoApproveEnabled(supabase, user.id, workspaceId);
+            if (isAutoApprove) {
+              console.log(`[AutoApprove] ⚡ Auto-Approve is ACTIVE for image retry post ${postId}. Approving...`);
+              const approveRes = await approvePostAction(postId);
+              if (approveRes.success) {
+                const { data: approvedPost } = await supabase
+                  .from("content_posts")
+                  .select("*")
+                  .eq("id", postId)
+                  .maybeSingle();
+                if (approvedPost) {
+                  updatedPost = approvedPost;
+                }
+              }
+            }
+          } catch (autoErr) {
+            console.warn("[AutoApprove] Error during image retry auto-approve check:", autoErr);
+          }
+        }
+
         revalidatePath("/content-calendar");
         return { success: true, queued: false, post: updatedPost };
       } else {
@@ -1101,6 +1149,31 @@ export async function triggerPostRevisionAction(
 
     if (updateErr) {
       return { success: false, error: "Gagal menyimpan hasil revisi ke database." };
+    }
+
+    // Auto-Approve check: If finalStatus is READY FOR APPROVAL and auto-approve is active, immediately approve
+    if (finalStatus === "READY FOR APPROVAL") {
+      try {
+        const isAutoApprove = await checkIsAutoApproveEnabled(supabase, user.id, post.workspace_id);
+        if (isAutoApprove) {
+          console.log(`[AutoApprove] ⚡ Auto-Approve is ACTIVE for revised post ${postId}. Automatically approving to Zernio...`);
+          const approveRes = await approvePostAction(postId);
+          if (approveRes.success) {
+            const { data: approvedPost } = await supabase
+              .from("content_posts")
+              .select("*")
+              .eq("id", postId)
+              .maybeSingle();
+            if (approvedPost) {
+              updatedPost = approvedPost;
+            }
+          }
+        } else {
+          console.log(`[AutoApprove] ⏸️ Auto-Approve is OFF for revised post ${postId}. Waiting for manual user approval.`);
+        }
+      } catch (autoErr) {
+        console.warn("[AutoApprove] Error during revision auto-approve check:", autoErr);
+      }
     }
 
     revalidatePath("/content-calendar");

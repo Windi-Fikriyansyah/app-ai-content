@@ -16,6 +16,7 @@ import {
   ImageGenerationResult,
 } from "../../ai/lazy-generator";
 import { BusinessContext } from "../../ai/planner";
+import { checkIsAutoApproveEnabled } from "../../../app/(dashboard)/auto-approve-actions";
 
 export function createGenerationWorker() {
   const worker = new Worker<ContentGenerationJobData>(
@@ -309,13 +310,57 @@ export function createGenerationWorker() {
           .eq("id", postId);
       }
 
+      let postStatus = finalStatus;
+
+      // Auto-Approve check: If status is READY FOR APPROVAL and auto-approve is active, immediately dispatch to Zernio
+      if (finalStatus === "READY FOR APPROVAL") {
+        try {
+          const isAutoApprove = await checkIsAutoApproveEnabled(supabase, job.data.userId, post.workspace_id || workspaceId);
+          if (isAutoApprove) {
+            console.log(`[Worker:content-generation] ⚡ Auto-Approve is ACTIVE for post ${postId}. Automatically scheduling to Zernio...`);
+            await supabase
+              .from("content_posts")
+              .update({ status: "APPROVED" })
+              .eq("id", postId);
+
+            const { enqueueZernioDispatch } = await import("../queues");
+            const dispatchJob = await enqueueZernioDispatch({
+              postId,
+              workspaceId: post.workspace_id || workspaceId,
+              userId: job.data.userId || "",
+              action: "create_scheduled_post",
+            });
+
+            await supabase
+              .from("content_posts")
+              .update({
+                status: "SCHEDULED",
+                ai_review: {
+                  ...(reviewResult || {}),
+                  dispatch_job_id: dispatchJob.jobId,
+                  queued_at: new Date().toISOString(),
+                  auto_approved: true,
+                },
+              })
+              .eq("id", postId);
+
+            postStatus = "SCHEDULED";
+            console.log(`[Worker:content-generation] 🚀 Auto-Approve dispatched to Zernio BullMQ. Job ID: ${dispatchJob.jobId}`);
+          } else {
+            console.log(`[Worker:content-generation] ⏸️ Auto-Approve is OFF for post ${postId}. Waiting for manual user approval.`);
+          }
+        } catch (autoErr) {
+          console.warn(`[Worker:content-generation] Auto-approve dispatch error:`, autoErr);
+        }
+      }
+
       await job.updateProgress(100);
-      console.log(`[Worker:content-generation] Finished for post ${postId}! Status: ${finalStatus}`);
+      console.log(`[Worker:content-generation] Finished for post ${postId}! Status: ${postStatus}`);
 
       return {
         success: overallSuccess,
         postId,
-        status: finalStatus,
+        status: postStatus,
         aiScore: reviewResult.score,
         captionStatus: captionResult.success ? "COMPLETED" : "FAILED",
         imageStatus: imageResult.success ? "COMPLETED" : "FAILED",

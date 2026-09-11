@@ -157,7 +157,12 @@ export default function ContentCalendarPage() {
                 setActivePost((prev) => (prev ? { ...prev, ...pollRes.post } : null));
                 setIsGeneratingLazy(false);
 
-                if (currentStatus === "READY FOR APPROVAL" || currentStatus === "REVIEW") {
+                if (currentStatus === "SCHEDULED" || currentStatus === "APPROVED") {
+                  setLazyFeedback({
+                    type: "success",
+                    message: "🎉 AI Review lolos dan konten telah OTOMATIS DISETUJUI (Auto-Approve) & dijadwalkan ke Zernio!",
+                  });
+                } else if (currentStatus === "READY FOR APPROVAL" || currentStatus === "REVIEW") {
                   setLazyFeedback({
                     type: "success",
                     message: "✨ Selesai! Worker BullMQ telah menyelesaikan Caption, Visual, dan AI Review!",
@@ -193,10 +198,17 @@ export default function ContentCalendarPage() {
           setActivePost((prev) => (prev ? { ...prev, ...fallbackRes.post } : null));
         }
         setIsGeneratingLazy(false);
-        setLazyFeedback({
-          type: "success",
-          message: "✨ Selesai diproses via Direct Mode.",
-        });
+        if (fallbackRes.post.status === "SCHEDULED" || fallbackRes.post.status === "APPROVED") {
+          setLazyFeedback({
+            type: "success",
+            message: "🎉 AI Review lolos dan konten telah OTOMATIS DISETUJUI (Auto-Approve) & dijadwalkan ke Zernio!",
+          });
+        } else {
+          setLazyFeedback({
+            type: "success",
+            message: "✨ Selesai diproses via Direct Mode.",
+          });
+        }
       }
     } catch (err: any) {
       setIsGeneratingLazy(false);
@@ -502,7 +514,12 @@ export default function ContentCalendarPage() {
                 setActivePost((prev) => (prev ? { ...prev, ...pollRes.post } : null));
                 setIsRevising(false);
 
-                if (postStatus === "READY FOR APPROVAL" || (pollRes.post.ai_score && pollRes.post.ai_score >= 80)) {
+                if (postStatus === "SCHEDULED" || postStatus === "APPROVED") {
+                  setLazyFeedback({
+                    type: "success",
+                    message: `🎉 Revisi berhasil (Skor: ${pollRes.post.ai_score}/100) dan telah OTOMATIS DISETUJUI (Auto-Approve) ke Zernio!`,
+                  });
+                } else if (postStatus === "READY FOR APPROVAL" || (pollRes.post.ai_score && pollRes.post.ai_score >= 80)) {
                   setLazyFeedback({
                     type: "success",
                     message: `✨ Revisi berhasil! Skor meningkat menjadi ${pollRes.post.ai_score}/100 dan siap disetujui (READY FOR APPROVAL).`,
@@ -535,7 +552,12 @@ export default function ContentCalendarPage() {
         setActivePost((prev) => (prev ? { ...prev, ...res.post } : null));
         setIsRevising(false);
 
-        if (res.post.status === "READY FOR APPROVAL" || (res.post.ai_score && res.post.ai_score >= 80)) {
+        if (res.post.status === "SCHEDULED" || res.post.status === "APPROVED") {
+          setLazyFeedback({
+            type: "success",
+            message: `🎉 Revisi berhasil (Skor: ${res.post.ai_score}/100) dan telah OTOMATIS DISETUJUI (Auto-Approve) ke Zernio!`,
+          });
+        } else if (res.post.status === "READY FOR APPROVAL" || (res.post.ai_score && res.post.ai_score >= 80)) {
           setLazyFeedback({
             type: "success",
             message: `✨ Revisi berhasil! Skor meningkat menjadi ${res.post.ai_score}/100 dan siap disetujui (READY FOR APPROVAL).`,
