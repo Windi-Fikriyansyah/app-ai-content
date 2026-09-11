@@ -167,7 +167,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Card 4: Engage */}
+        {/* Card 4: Engage (Target Benchmark) */}
         <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/30 shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs sm:text-sm font-semibold text-outline">Engage</span>
@@ -176,10 +176,15 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="mt-4">
-            <div className="font-headline-lg text-2xl sm:text-4xl font-extrabold text-amber-600 tracking-tight">
-              {data.stats.engagementRate}
+            <div className="font-headline-lg text-2xl sm:text-4xl font-extrabold text-amber-600 tracking-tight flex items-baseline gap-1.5">
+              <span>{data.stats.engagementRate}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100/60 text-amber-800">
+                Target
+              </span>
             </div>
-            <p className="text-[11px] text-outline mt-0.5">Rata-rata interaksi audiens</p>
+            <p className="text-[11px] text-outline mt-0.5" title="Estimasi target interaksi industri sampai sinkronisasi metrik live Zernio aktif">
+              Target proyeksi interaksi
+            </p>
           </div>
         </div>
       </section>

@@ -383,6 +383,146 @@ export async function getInstagramConnectUrlAction(originUrl?: string): Promise<
 }
 
 /**
+ * 3b. Generate Threads Connect URL (Zernio OAuth Flow)
+ */
+export async function getThreadsConnectUrlAction(originUrl?: string): Promise<{
+  success: boolean;
+  authUrl?: string;
+  error?: string;
+}> {
+  try {
+    const { user, workspace } = await getActiveWorkspaceInfo();
+    if (!user) {
+      return { success: false, error: "Sesi tidak ditemukan." };
+    }
+
+    let apiKey = workspace.zernio_api_key;
+    if (!apiKey) {
+      apiKey = user.user_metadata?.zernio_api_key;
+    }
+
+    if (!apiKey) {
+      return {
+        success: false,
+        error: "API Key Zernio belum tersimpan. Harap simpan API Key Zernio terlebih dahulu.",
+      };
+    }
+
+    const zernio = new ZernioClient(apiKey);
+
+    let profileId = workspace.zernio_profile_id || user.user_metadata?.zernio_profile_id;
+    if (!profileId) {
+      const baseName = workspace.name || user.user_metadata?.business_name || "Workspace";
+      const uniqueSuffix = workspace.id ? workspace.id.slice(0, 6) : Math.random().toString(36).slice(2, 6);
+      const profileName = `${baseName} (${uniqueSuffix})`;
+      const profileRes = await zernio.getOrCreateProfile(profileName);
+      if (!profileRes.profileId) {
+        return {
+          success: false,
+          error: profileRes.error || "Gagal membuat atau mengambil Profile ID Zernio untuk workspace ini.",
+        };
+      }
+      profileId = profileRes.profileId;
+
+      const { supabase } = await getActiveWorkspaceInfo();
+      if (supabase && workspace.id) {
+        try {
+          await supabase
+            .from("workspaces")
+            .update({ zernio_profile_id: profileId })
+            .eq("id", workspace.id);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const callbackRedirectUrl = originUrl
+      ? `${originUrl}/social-accounts?connected=threads`
+      : undefined;
+
+    const connectRes = await zernio.getThreadsConnectUrl({
+      profileId,
+      redirectUrl: callbackRedirectUrl,
+    });
+
+    if (!connectRes.success || !connectRes.authUrl) {
+      return {
+        success: false,
+        error: connectRes.error || "Gagal mendapatkan URL otentikasi Threads dari Zernio.",
+      };
+    }
+
+    return {
+      success: true,
+      authUrl: connectRes.authUrl,
+    };
+  } catch (err: any) {
+    console.error("Error generating Threads connect URL:", err);
+    return {
+      success: false,
+      error: err.message || "Gagal menginisialisasi koneksi Threads.",
+    };
+  }
+}
+
+/**
+ * 3c. Direct / Manual Connect Social Account (e.g. Threads, Instagram)
+ * Provides instant connection and testing capability
+ */
+export async function connectManualSocialAccountAction(params: {
+  provider: "threads" | "instagram" | "facebook" | "twitter" | "linkedin" | "tiktok";
+  username: string;
+  displayName?: string;
+  providerAccountId?: string;
+}): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const { user, workspace, supabase } = await getActiveWorkspaceInfo();
+    if (!user || !workspace?.id || !supabase) {
+      return { success: false, error: "Sesi tidak ditemukan." };
+    }
+
+    const cleanUsername = params.username.replace(/^@/, "").trim();
+    if (!cleanUsername) {
+      return { success: false, error: "Username tidak boleh kosong." };
+    }
+
+    const providerAccountId =
+      params.providerAccountId ||
+      `acc_${params.provider}_${cleanUsername.toLowerCase()}_${Date.now().toString(36)}`;
+
+    const { error: upsertErr } = await supabase.from("social_accounts").upsert(
+      {
+        workspace_id: workspace.id,
+        provider: params.provider.toLowerCase(),
+        provider_account_id: providerAccountId,
+        username: cleanUsername,
+        display_name: params.displayName || cleanUsername,
+        status: "connected",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "workspace_id,provider,provider_account_id" }
+    );
+
+    if (upsertErr) {
+      return { success: false, error: upsertErr.message };
+    }
+
+    revalidatePath("/social-accounts");
+    return {
+      success: true,
+      message: `Akun ${params.provider.toUpperCase()} @${cleanUsername} berhasil dihubungkan!`,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Gagal menghubungkan akun." };
+  }
+}
+
+/**
  * 4. Disconnect Social Account
  */
 export async function disconnectSocialAccount(accountId: string): Promise<{

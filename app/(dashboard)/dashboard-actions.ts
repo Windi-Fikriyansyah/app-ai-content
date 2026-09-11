@@ -23,6 +23,7 @@ export interface DashboardDataResult {
     queuedCount: number;
     publishedCount: number;
     engagementRate: string;
+    isEstimated?: boolean;
   };
   upcomingPosts: DashboardUpcomingPost[];
   error?: string;
@@ -150,7 +151,7 @@ export async function getDashboardDataAction(): Promise<DashboardDataResult> {
     ).length;
     const publishedCount = posts.filter((p) => p.status === "PUBLISHED").length;
 
-    // Dynamic engagement rate estimation
+    // Benchmark / Projected Target Engagement Rate (Active until Zernio Live Analytics module is fully synced)
     const baseEng = 6.8 + ((totalPlans * 7) % 15) / 10;
     const engagementRate = `${baseEng.toFixed(1)}%`;
 
@@ -159,6 +160,7 @@ export async function getDashboardDataAction(): Promise<DashboardDataResult> {
       queuedCount,
       publishedCount,
       engagementRate,
+      isEstimated: true,
     };
 
     // 4. Extract Upcoming Content

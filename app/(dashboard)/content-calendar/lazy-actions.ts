@@ -307,19 +307,38 @@ export async function approvePostAction(postId: string): Promise<{
       process.env.ZERNIO_API_KEY ||
       "zernio_sandbox_key";
 
-    // 5. Resolve Connected Instagram Account from social_accounts table
-    const { data: socialAcc } = await supabase
+    // 5. Resolve All Active Connected Social Accounts from social_accounts table
+    const { data: activeSocialAccounts } = await supabase
       .from("social_accounts")
-      .select("id, provider, provider_account_id, username")
+      .select("id, provider, provider_account_id, username, status")
       .eq("workspace_id", workspaceId)
-      .eq("provider", "instagram")
-      .maybeSingle();
+      .neq("status", "disconnected");
 
-    const zernioAccountId =
-      socialAcc?.provider_account_id ||
-      socialAcc?.id ||
-      workspace?.zernio_profile_id ||
-      "acc_instagram_primary";
+    let accountIds: string[] = [];
+    let platforms: Array<{ platform: string; accountId: string }> = [];
+
+    if (activeSocialAccounts && activeSocialAccounts.length > 0) {
+      for (const acc of activeSocialAccounts) {
+        const accId = acc.provider_account_id || acc.id;
+        if (accId) {
+          accountIds.push(accId);
+          const prov = (acc.provider || "instagram").toLowerCase();
+          platforms.push({
+            platform: prov === "x" ? "twitter" : prov,
+            accountId: accId,
+          });
+        }
+      }
+    }
+
+    if (accountIds.length === 0) {
+      const fallbackId = workspace?.zernio_profile_id || "acc_instagram_primary";
+      accountIds = [fallbackId];
+      platforms = [{ platform: "instagram", accountId: fallbackId }];
+    }
+
+    const zernioAccountId = accountIds[0];
+    const platformNames = Array.from(new Set(platforms.map((p) => p.platform))).join(", ");
 
     // 6. Calculate ISO Scheduled Date Time (Asia/Jakarta +07:00)
     const scheduledDateStr = post.scheduled_date || new Date().toISOString().split("T")[0];
@@ -348,13 +367,15 @@ export async function approvePostAction(postId: string): Promise<{
     }
 
     console.log(`[ZernioPublish] 📤 Creating Scheduled Post in Zernio:`);
-    console.log(`  - Account ID:   ${zernioAccountId}`);
+    console.log(`  - Accounts:     ${accountIds.join(", ")}`);
+    console.log(`  - Platforms:    ${platformNames}`);
     console.log(`  - Format:       ${post.format || "Feed"}`);
     console.log(`  - Scheduled At: ${scheduledAtDate.toISOString()}`);
     console.log(`  - Media:        ${mediaUrls.length > 0 ? `${mediaUrls.length} image(s) ✅` : "No media"}`);
 
     const zernioRes = await zernioClient.createPost({
-      accountIds: [zernioAccountId],
+      accountIds,
+      platforms,
       content: fullContent,
       mediaUrls,
       format: post.format,
@@ -378,9 +399,12 @@ export async function approvePostAction(postId: string): Promise<{
       status: "SCHEDULED",
       zernio_post_id: zernioPostId,
       scheduled_at: scheduledAtDate.toISOString(),
+      platform: platformNames || post.platform || "instagram",
       ai_review: {
         ...(post.ai_review || {}),
         zernio_account_id: zernioAccountId,
+        zernio_account_ids: accountIds,
+        platforms: platforms.map((p) => p.platform),
         scheduled_at: scheduledAtDate.toISOString(),
       },
     };

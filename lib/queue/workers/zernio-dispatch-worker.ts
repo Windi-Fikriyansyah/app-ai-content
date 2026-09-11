@@ -64,19 +64,39 @@ export function createZernioDispatchWorker() {
         process.env.ZERNIO_API_KEY ||
         "zernio_sandbox_key";
 
-      // 4. Resolve Connected Instagram Account
-      const { data: socialAcc } = await supabase
+      // 4. Resolve All Active Connected Social Media Accounts (Multi-platform auto dispatch)
+      const { data: activeSocialAccounts } = await supabase
         .from("social_accounts")
-        .select("id, provider, provider_account_id, username")
+        .select("id, provider, provider_account_id, username, status")
         .eq("workspace_id", workspaceId)
-        .eq("provider", "instagram")
-        .maybeSingle();
+        .neq("status", "disconnected");
 
-      const zernioAccountId =
-        socialAcc?.provider_account_id ||
-        socialAcc?.id ||
-        workspace?.zernio_profile_id ||
-        "acc_instagram_primary";
+      let accountIds: string[] = [];
+      let platforms: Array<{ platform: string; accountId: string }> = [];
+
+      if (activeSocialAccounts && activeSocialAccounts.length > 0) {
+        for (const acc of activeSocialAccounts) {
+          const accId = acc.provider_account_id || acc.id;
+          if (accId) {
+            accountIds.push(accId);
+            const prov = (acc.provider || "instagram").toLowerCase();
+            platforms.push({
+              platform: prov === "x" ? "twitter" : prov,
+              accountId: accId,
+            });
+          }
+        }
+      }
+
+      // Fallback if no accounts connected yet
+      if (accountIds.length === 0) {
+        const fallbackId = workspace?.zernio_profile_id || "acc_instagram_primary";
+        accountIds = [fallbackId];
+        platforms = [{ platform: "instagram", accountId: fallbackId }];
+      }
+
+      const zernioAccountId = accountIds[0];
+      const platformNames = Array.from(new Set(platforms.map((p) => p.platform))).join(", ");
 
       // 5. Calculate ISO Scheduled Date Time (Asia/Jakarta +07:00)
       const scheduledDateStr = post.scheduled_date || new Date().toISOString().split("T")[0];
@@ -104,10 +124,11 @@ export function createZernioDispatchWorker() {
         }
       }
 
-      console.log(`[Worker:zernio-dispatch] 📤 Sending to Zernio API: Account=${zernioAccountId}, Format=${post.format}, ScheduledAt=${scheduledAtDate.toISOString()}`);
+      console.log(`[Worker:zernio-dispatch] 📤 Sending to Zernio API: Accounts=[${accountIds.join(", ")}], Platforms=[${platformNames}], Format=${post.format}, ScheduledAt=${scheduledAtDate.toISOString()}`);
 
       const zernioRes = await zernioClient.createPost({
-        accountIds: [zernioAccountId],
+        accountIds,
+        platforms,
         content: fullContent,
         mediaUrls,
         format: post.format,
@@ -129,9 +150,12 @@ export function createZernioDispatchWorker() {
         status: "SCHEDULED",
         zernio_post_id: zernioPostId,
         scheduled_at: scheduledAtDate.toISOString(),
+        platform: platformNames || post.platform || "instagram",
         ai_review: {
           ...(post.ai_review || {}),
           zernio_account_id: zernioAccountId,
+          zernio_account_ids: accountIds,
+          platforms: platforms.map((p) => p.platform),
           scheduled_at: scheduledAtDate.toISOString(),
           dispatched_via: "bullmq_queue",
           dispatched_at: new Date().toISOString(),

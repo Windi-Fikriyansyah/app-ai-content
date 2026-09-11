@@ -182,22 +182,41 @@ export class ZernioClient {
   }
 
   /**
-   * Get Instagram Connect OAuth URL: GET /v1/connect/instagram
-   * @param profileId Profile ID to link account to
-   * @param redirectUrl URL to redirect after OAuth completion
-   * @param loginMethod 'instagram_login' (default) or 'facebook_login'
+   * Generic Platform Connect OAuth URL: GET /v1/connect/:platform
+   * Supports: instagram, threads, facebook, twitter, linkedin, tiktok
    */
-  async getInstagramConnectUrl(params: {
-    profileId: string;
-    redirectUrl?: string;
-    loginMethod?: "instagram_login" | "facebook_login";
-  }): Promise<{ success: boolean; authUrl?: string; error?: string }> {
+  async getConnectUrl(
+    platform: string,
+    params: {
+      profileId: string;
+      redirectUrl?: string;
+      loginMethod?: string;
+    }
+  ): Promise<{ success: boolean; authUrl?: string; error?: string }> {
+    const isMock =
+      !this.apiKey ||
+      this.apiKey.includes("dummy") ||
+      this.apiKey.includes("your_zernio_api_key") ||
+      process.env.ZERNIO_MOCK === "true";
+
+    if (isMock) {
+      const mockRedirect = params.redirectUrl || `/social-accounts`;
+      const separator = mockRedirect.includes("?") ? "&" : "?";
+      return {
+        success: true,
+        authUrl: `${mockRedirect}${separator}connected=${platform}&accountId=mock_${platform}_${Date.now()}&status=success`,
+      };
+    }
+
     const query = new URLSearchParams();
     query.set("profileId", params.profileId);
-    if (params.redirectUrl) query.set("redirect_url", params.redirectUrl);
-    query.set("loginMethod", params.loginMethod || "instagram_login");
+    if (params.redirectUrl) {
+      query.set("redirect_url", params.redirectUrl);
+      query.set("redirectUrl", params.redirectUrl);
+    }
+    if (params.loginMethod) query.set("loginMethod", params.loginMethod);
 
-    const endpoint = `/v1/connect/instagram?${query.toString()}`;
+    const endpoint = `/v1/connect/${platform.toLowerCase()}?${query.toString()}`;
     const url = `${this.baseUrl}${endpoint}`;
 
     try {
@@ -243,14 +262,35 @@ export class ZernioClient {
         success: false,
         error:
           json?.message ||
-          "Respon Zernio tidak menyertakan URL otentikasi (authUrl).",
+          `Respon Zernio tidak menyertakan URL otentikasi (${platform}).`,
       };
     } catch (err: any) {
       return {
         success: false,
-        error: err.message || "Gagal menghubungi server Zernio.",
+        error: err.message || `Gagal menghubungi server Zernio untuk koneksi ${platform}.`,
       };
     }
+  }
+
+  /**
+   * Get Instagram Connect OAuth URL: GET /v1/connect/instagram
+   */
+  async getInstagramConnectUrl(params: {
+    profileId: string;
+    redirectUrl?: string;
+    loginMethod?: "instagram_login" | "facebook_login";
+  }): Promise<{ success: boolean; authUrl?: string; error?: string }> {
+    return this.getConnectUrl("instagram", params);
+  }
+
+  /**
+   * Get Threads Connect OAuth URL: GET /v1/connect/threads
+   */
+  async getThreadsConnectUrl(params: {
+    profileId: string;
+    redirectUrl?: string;
+  }): Promise<{ success: boolean; authUrl?: string; error?: string }> {
+    return this.getConnectUrl("threads", params);
   }
 
   /**
@@ -293,6 +333,7 @@ export class ZernioClient {
    */
   async createPost(params: {
     accountIds: string[];
+    platforms?: Array<{ platform: string; accountId: string }>;
     content: string;
     mediaUrls?: string[];
     format?: string; // "Feed" | "Carousel" | "Reels" | "Story"
@@ -332,7 +373,7 @@ export class ZernioClient {
     if (isMock) {
       const mockPostId = `zernio_post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       console.log(
-        `[ZernioClient:Mock] 🚀 Creating simulated SCHEDULED post (isDraft: false): ${mockPostId} for accounts [${params.accountIds.join(", ")}] at ${targetTime}`
+        `[ZernioClient:Mock] 🚀 Creating simulated SCHEDULED post (isDraft: false): ${mockPostId} for accounts [${params.accountIds.join(", ")}] on platforms [${(params.platforms || []).map(p => p.platform).join(", ") || "instagram"}] at ${targetTime}`
       );
       return {
         success: true,
@@ -355,10 +396,13 @@ export class ZernioClient {
       draft: false,
 
       // 2. Target Platforms and Accounts
-      platforms: params.accountIds.map((accId) => ({
-        platform: "instagram",
-        accountId: accId,
-      })),
+      platforms:
+        params.platforms && params.platforms.length > 0
+          ? params.platforms
+          : params.accountIds.map((accId) => ({
+              platform: "instagram",
+              accountId: accId,
+            })),
       accountIds: params.accountIds,
 
       // 3. Content & Media

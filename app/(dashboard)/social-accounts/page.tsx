@@ -23,6 +23,8 @@ import {
   getSocialAccountsData,
   saveZernioApiKey,
   getInstagramConnectUrlAction,
+  getThreadsConnectUrlAction,
+  connectManualSocialAccountAction,
   disconnectSocialAccount,
   removeZernioApiKey,
   SocialAccountsData,
@@ -64,6 +66,12 @@ function SocialAccountsContent() {
 
   // Connect Instagram Flow State
   const [isConnectingInstagram, setIsConnectingInstagram] = useState(false);
+  // Connect Threads Flow State
+  const [isConnectingThreads, setIsConnectingThreads] = useState(false);
+  const [showManualThreadsModal, setShowManualThreadsModal] = useState(false);
+  const [manualThreadsUsername, setManualThreadsUsername] = useState("");
+  const [isSavingManualThreads, setIsSavingManualThreads] = useState(false);
+
   const [connectFeedback, setConnectFeedback] = useState<{
     type: "success" | "error" | null;
     message: string;
@@ -92,10 +100,15 @@ function SocialAccountsContent() {
     const accountId = searchParams.get("accountId");
     const status = searchParams.get("status");
 
-    if (justConnected === "instagram" || accountId || status === "success") {
+    if (justConnected === "instagram" || (accountId && searchParams.get("provider") === "instagram") || (status === "success" && justConnected === "instagram")) {
       setConnectFeedback({
         type: "success",
         message: "Selamat! Akun Instagram Bisnis berhasil diotorisasi dan terhubung melalui Zernio.",
+      });
+    } else if (justConnected === "threads" || (status === "success" && justConnected === "threads")) {
+      setConnectFeedback({
+        type: "success",
+        message: "Selamat! Akun Threads berhasil diotorisasi dan terhubung melalui Zernio.",
       });
     }
   }, [justConnected, searchParams]);
@@ -161,7 +174,8 @@ function SocialAccountsContent() {
     setConnectFeedback({ type: null, message: "" });
 
     try {
-      const res = await getInstagramConnectUrlAction();
+      const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+      const res = await getInstagramConnectUrlAction(origin);
       if (res.success && res.authUrl) {
         window.location.href = res.authUrl;
       } else {
@@ -177,6 +191,57 @@ function SocialAccountsContent() {
         message: "Terjadi kesalahan saat menghubungi server.",
       });
       setIsConnectingInstagram(false);
+    }
+  };
+
+  // Handle Connect Threads
+  const handleConnectThreads = async () => {
+    setIsConnectingThreads(true);
+    setConnectFeedback({ type: null, message: "" });
+
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+      const res = await getThreadsConnectUrlAction(origin);
+      if (res.success && res.authUrl) {
+        window.location.href = res.authUrl;
+      } else {
+        setShowManualThreadsModal(true);
+      }
+    } catch {
+      setShowManualThreadsModal(true);
+    } finally {
+      setIsConnectingThreads(false);
+    }
+  };
+
+  // Handle Manual Threads Submit
+  const handleManualThreadsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualThreadsUsername.trim()) return;
+
+    setIsSavingManualThreads(true);
+    try {
+      const res = await connectManualSocialAccountAction({
+        provider: "threads",
+        username: manualThreadsUsername.trim(),
+        displayName: manualThreadsUsername.trim(),
+      });
+
+      if (res.success) {
+        setConnectFeedback({
+          type: "success",
+          message: res.message || "Akun Threads berhasil dihubungkan!",
+        });
+        setShowManualThreadsModal(false);
+        setManualThreadsUsername("");
+        await loadData();
+      } else {
+        alert(res.error || "Gagal menghubungkan akun Threads.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Terjadi kesalahan saat menghubungkan akun Threads.");
+    } finally {
+      setIsSavingManualThreads(false);
     }
   };
 
@@ -200,6 +265,9 @@ function SocialAccountsContent() {
   const isConfigured = data?.workspace?.isApiKeyConfigured;
   const connectedInstagram = data?.connectedAccounts.filter(
     (a) => a.provider.toLowerCase() === "instagram"
+  );
+  const connectedThreads = data?.connectedAccounts.filter(
+    (a) => a.provider.toLowerCase() === "threads"
   );
 
   return (
@@ -530,6 +598,103 @@ function SocialAccountsContent() {
               </div>
             </div>
 
+            {/* 2. THREADS BY META (ACTIVE / CONNECTABLE) */}
+            <div className="bg-surface-container-lowest rounded-2xl border-2 border-black/20 dark:border-white/20 p-space-lg shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group">
+              {/* Background subtle accent */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-black/5 via-zinc-500/10 to-transparent rounded-bl-full pointer-events-none" />
+
+              <div>
+                <div className="flex items-start justify-between">
+                  {/* Threads Logo */}
+                  <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center shadow-sm">
+                    <svg className="w-6 h-6 fill-current" viewBox="0 0 192 192">
+                      <path d="M141.537 88.9883C140.71 88.5919 139.87 88.2104 139.019 87.8451C137.537 60.5382 122.616 44.905 97.5619 44.745C97.4484 44.7443 97.3355 44.7443 97.222 44.745C75.2536 44.745 57.6534 59.8804 53.6499 82.2608C49.6464 104.641 60.3344 126.969 80.127 137.545C97.8099 146.992 119.985 144.137 134.428 130.485L120.73 117.078C110.849 126.417 95.8078 128.261 83.7431 121.815C70.2526 114.608 62.9734 99.3789 65.7011 84.126C68.4288 68.8732 80.4288 58.5583 95.3995 58.5583C95.4764 58.5583 95.554 58.5583 95.631 58.5587C112.592 58.6669 122.846 69.4586 123.87 88.3582C106.942 86.8837 89.3776 90.7937 77.0395 101.444C60.9161 115.361 58.5135 137.525 71.6661 150.963C84.8188 164.402 107.013 162.597 122.384 148.067C130.82 140.092 136.009 129.475 138.358 117.848C148.966 123.864 159.208 127.351 168.971 128.243C174.636 128.761 180.207 128.283 185.642 126.814L182.115 113.805C178.411 114.806 174.613 115.132 170.757 114.779C162.616 114.035 153.844 110.741 144.532 104.935C144.757 99.5108 143.754 94.1843 141.537 88.9883ZM114.341 135.539C102.871 146.381 86.2925 147.728 76.4719 137.695C66.6513 127.661 68.4452 111.112 80.4839 100.72C89.7042 92.7601 103.266 89.6587 116.326 90.6725C115.827 106.331 113.252 122.253 114.341 135.539Z" />
+                    </svg>
+                  </div>
+
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-black/10 dark:bg-white/10 text-on-surface border border-black/15">
+                    Aktif & Terintegrasi
+                  </span>
+                </div>
+
+                <div className="mt-4">
+                  <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
+                    Threads by Meta
+                  </h3>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                    Hubungkan akun Threads Anda untuk publikasi otomatis postingan teks, gambar, dan rangkaian threads terjadwal.
+                  </p>
+                </div>
+
+                {/* Requirements Bullet Points */}
+                <div className="mt-3 p-2.5 rounded-lg bg-surface border border-outline-variant/30 text-[11px] text-outline space-y-1">
+                  <div className="flex items-center gap-1.5 text-on-surface-variant font-medium">
+                    <Info className="w-3.5 h-3.5 text-primary" />
+                    <span>Fitur & Dukungan:</span>
+                  </div>
+                  <p>• Auto-publish teks micro-blogging & multi-media</p>
+                  <p>• Otorisasi via Zernio OAuth / Sambung Cepat</p>
+                </div>
+              </div>
+
+              {/* Action Button & Card Feedback */}
+              <div className="mt-5 pt-3 border-t border-outline-variant/30 space-y-2">
+                {connectedThreads && connectedThreads.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-xs font-semibold">
+                          @{connectedThreads[0].username} (Terhubung)
+                        </span>
+                      </div>
+                      <BadgeCheck className="w-4 h-4 text-emerald-600" />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDisconnect(connectedThreads[0].providerAccountId || connectedThreads[0].id)}
+                      disabled={disconnectingId === (connectedThreads[0].providerAccountId || connectedThreads[0].id)}
+                      className="w-full py-2 px-3 rounded-xl border border-error/30 text-error hover:bg-error-container/30 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                      <span>Putuskan Akun Threads</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleConnectThreads}
+                      disabled={isConnectingThreads}
+                      className="flex-1 py-2.5 px-3.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-label-md text-label-md font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer text-xs sm:text-sm"
+                    >
+                      {isConnectingThreads ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Menghubungkan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="w-4 h-4" />
+                          <span>Hubungkan Threads</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowManualThreadsModal(true)}
+                      title="Hubungkan langsung dengan memasukkan username Threads"
+                      className="py-2.5 px-3 rounded-xl border border-outline-variant/40 hover:bg-surface text-on-surface text-xs font-medium transition-colors cursor-pointer shrink-0"
+                    >
+                      Sambung Cepat
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* 2. FACEBOOK PAGE (COMING SOON) */}
             <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-space-lg shadow-xs opacity-75 flex flex-col justify-between">
               <div>
@@ -670,9 +835,21 @@ function SocialAccountsContent() {
                   Akun yang aktif akan dijadikan tujuan penerbitan konten otomatis oleh AI Content Planner.
                 </p>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-variant text-on-surface-variant self-start sm:self-auto">
-                {data?.connectedAccounts.length || 0} Terhubung
-              </span>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => loadData()}
+                  disabled={loading}
+                  className="text-xs font-medium text-primary hover:bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Sinkronkan akun terbaru dari server Zernio"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                  <span>Sinkronkan Zernio</span>
+                </button>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-variant text-on-surface-variant">
+                  {data?.connectedAccounts.length || 0} Terhubung
+                </span>
+              </div>
             </div>
 
             {loading ? (
@@ -700,8 +877,14 @@ function SocialAccountsContent() {
                           <span>{account.username.slice(0, 2).toUpperCase()}</span>
                         )}
                         {/* Channel provider mini badge */}
-                        <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center text-[8px] ring-1 ring-white">
-                          IG
+                        <div
+                          className={`absolute bottom-0 right-0 w-4 h-4 rounded-full text-white flex items-center justify-center text-[8px] ring-1 ring-white ${
+                            account.provider.toLowerCase() === "threads"
+                              ? "bg-black"
+                              : "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600"
+                          }`}
+                        >
+                          {account.provider.toLowerCase() === "threads" ? "@" : "IG"}
                         </div>
                       </div>
 
@@ -716,7 +899,10 @@ function SocialAccountsContent() {
                           </span>
                         </div>
                         <p className="font-code-sm text-xs text-outline mt-0.5 truncate">
-                          @{account.username} · Instagram Business
+                          @{account.username} ·{" "}
+                          {account.provider.toLowerCase() === "threads"
+                            ? "Threads by Meta"
+                            : "Instagram Business"}
                         </p>
                       </div>
                     </div>
@@ -771,6 +957,82 @@ function SocialAccountsContent() {
           <p className="font-body-sm text-sm text-on-surface-variant max-w-md mt-2">
             Silakan masukkan dan simpan <strong>Zernio API Key</strong> pada Langkah 1 di atas. Setelah tersimpan, opsi koneksi Instagram dan platform media sosial lainnya akan langsung terbuka.
           </p>
+        </div>
+      )}
+      {/* Modal Sambung Cepat Threads */}
+      {showManualThreadsModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center">
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 192 192">
+                    <path d="M141.537 88.9883C140.71 88.5919 139.87 88.2104 139.019 87.8451C137.537 60.5382 122.616 44.905 97.5619 44.745C97.4484 44.7443 97.3355 44.7443 97.222 44.745C75.2536 44.745 57.6534 59.8804 53.6499 82.2608C49.6464 104.641 60.3344 126.969 80.127 137.545C97.8099 146.992 119.985 144.137 134.428 130.485L120.73 117.078C110.849 126.417 95.8078 128.261 83.7431 121.815C70.2526 114.608 62.9734 99.3789 65.7011 84.126C68.4288 68.8732 80.4288 58.5583 95.3995 58.5583C95.4764 58.5583 95.554 58.5583 95.631 58.5587C112.592 58.6669 122.846 69.4586 123.87 88.3582C106.942 86.8837 89.3776 90.7937 77.0395 101.444C60.9161 115.361 58.5135 137.525 71.6661 150.963C84.8188 164.402 107.013 162.597 122.384 148.067C130.82 140.092 136.009 129.475 138.358 117.848C148.966 123.864 159.208 127.351 168.971 128.243C174.636 128.761 180.207 128.283 185.642 126.814L182.115 113.805C178.411 114.806 174.613 115.132 170.757 114.779C162.616 114.035 153.844 110.741 144.532 104.935C144.757 99.5108 143.754 94.1843 141.537 88.9883ZM114.341 135.539C102.871 146.381 86.2925 147.728 76.4719 137.695C66.6513 127.661 68.4452 111.112 80.4839 100.72C89.7042 92.7601 103.266 89.6587 116.326 90.6725C115.827 106.331 113.252 122.253 114.341 135.539Z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-on-surface text-base">Hubungkan Akun Threads</h3>
+                  <p className="text-xs text-outline">Masukkan username akun Threads Anda</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManualThreadsModal(false)}
+                className="text-outline hover:text-on-surface p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleManualThreadsSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1.5">
+                  Username Threads
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline font-medium text-sm">@</span>
+                  <input
+                    type="text"
+                    value={manualThreadsUsername}
+                    onChange={(e) => setManualThreadsUsername(e.target.value)}
+                    placeholder="contoh: dapur_bu_ani"
+                    className="w-full pl-8 pr-3.5 py-2.5 bg-surface rounded-xl border border-outline-variant/40 text-sm focus:outline-none focus:border-primary text-on-surface"
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[11px] text-outline mt-1.5">
+                  Akun ini akan langsung terdaftar di sistem sebagai tujuan auto-publish konten multi-channel.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualThreadsModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-on-surface-variant hover:bg-surface cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingManualThreads || !manualThreadsUsername.trim()}
+                  className="px-5 py-2 rounded-xl bg-black text-white hover:bg-zinc-800 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingManualThreads ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Simpan Akun Threads</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
