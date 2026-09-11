@@ -41,6 +41,19 @@ async function handleCron(request: NextRequest) {
     tomorrow.setDate(now.getDate() + 2); // Up to 48 hours ahead
     const thresholdDateStr = tomorrow.toISOString().split("T")[0];
 
+    // 1b. Self-healing: Reset any old stuck GENERATING posts back to PLANNED
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await supabase
+      .from("content_posts")
+      .update({
+        status: "PLANNED",
+        caption_status: "PENDING",
+        image_status: "PENDING",
+      })
+      .eq("status", "GENERATING")
+      .eq("caption_status", "PENDING")
+      .lt("updated_at", tenMinutesAgo);
+
     // 2. Query posts that are PLANNED and due within threshold
     const { data: duePosts, error: fetchErr } = await supabase
       .from("content_posts")
@@ -57,140 +70,208 @@ async function handleCron(request: NextRequest) {
     if (!duePosts || duePosts.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "Tidak ada post PLANNED yang mendekati jadwal (H-1).",
+        message: "Tidak ada post PLANNED yang mendekati jadwal (H-1 / 48 jam).",
         processed: 0,
       });
     }
 
+    const { isRedisConnected } = await import("@/lib/queue/redis");
+    const { enqueueContentGeneration } = await import("@/lib/queue/queues");
+    const redisAlive = await isRedisConnected();
+
     const results = [];
 
-    // 3. Process each post with Idempotency guard
+    // 3. Process each post
     for (const post of duePosts) {
-      // Mark as GENERATING immediately to avoid race conditions
-      await supabase
-        .from("content_posts")
-        .update({ status: "GENERATING" })
-        .eq("id", post.id);
-
       const workspaceId = post.workspace_id;
 
-      // Fetch workspace context
-      const { data: bp } = await supabase
-        .from("business_profiles")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .maybeSingle();
+      if (redisAlive) {
+        // Option A: Enqueue to BullMQ for background worker execution (Recommended, avoids HTTP timeout)
+        await supabase
+          .from("content_posts")
+          .update({
+            status: "GENERATING",
+            caption_status: "GENERATING",
+            image_status: "GENERATING",
+            generation_error: null,
+          })
+          .eq("id", post.id);
 
-      const { data: bk } = await supabase
-        .from("brand_kits")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .maybeSingle();
+        const jobResult = await enqueueContentGeneration({
+          postId: post.id,
+          workspaceId,
+          triggerSource: "cron_h_minus_1",
+        });
 
-      const { data: rawProducts } = await supabase
-        .from("products_services")
-        .select("*")
-        .eq("workspace_id", workspaceId);
-
-      const products = (rawProducts || []).map((p: any) => ({
-        name: p.name || "",
-        price: p.price || undefined,
-        description: p.description || undefined,
-        benefits: p.benefits || undefined,
-      }));
-
-      const context: BusinessContext = {
-        businessName: bp?.business_name || "Bisnis Kami",
-        category: bp?.category || "Bisnis & Layanan",
-        description: bp?.description || "",
-        location: bp?.location || "",
-        website: bp?.website || "",
-        whatsapp: bp?.whatsapp || "",
-        targetAudience: bp?.target_audience || "Pelanggan Instagram",
-        products,
-        brandKit: {
-          primaryColor: bk?.primary_color || "#3B82F6",
-          secondaryColor: bk?.secondary_color || "#1E40AF",
-          writingTone: bk?.tone_of_voice || "Professional & Engaging",
-          visualStyle: bk?.visual_style || "Clean modern",
-          language: bk?.language || "Bahasa Indonesia",
-          emojiUsage: bk?.emoji_style || "Medium",
-        },
-      };
-
-      const genResult = await runLazyGenerationForPost(post, context);
-
-      await supabase
-        .from("content_posts")
-        .update({
-          caption: genResult.caption,
-          hook: genResult.hook,
-          cta: genResult.cta,
-          hashtags: genResult.hashtags,
-          media_url: genResult.mediaUrl,
-          ai_score: genResult.aiScore,
-          ai_review: genResult.aiReview,
-          status: genResult.status,
-          caption_status: genResult.captionStatus,
-          image_status: genResult.imageStatus,
-          generation_error: genResult.error || null,
-          generated_at: new Date().toISOString(),
-        })
-        .eq("id", post.id);
-
-      let finalPostStatus = genResult.status;
-
-      // Auto-Approve check: If status is READY FOR APPROVAL and auto-approve is active, immediately schedule to Zernio
-      if (genResult.status === "READY FOR APPROVAL") {
+        results.push({
+          id: post.id,
+          title: post.title,
+          status: "GENERATING",
+          queued: true,
+          jobId: jobResult.jobId,
+          mode: "bullmq_queue",
+        });
+      } else {
+        // Option B: Direct generation fallback if Redis is offline, with robust error catching
         try {
-          const isAutoApprove = await checkIsAutoApproveEnabled(supabase, undefined, workspaceId);
-          if (isAutoApprove) {
-            console.log(`[Cron:content-generation] ⚡ Auto-Approve is ACTIVE for post ${post.id}. Scheduling to Zernio...`);
-            await supabase
-              .from("content_posts")
-              .update({ status: "APPROVED" })
-              .eq("id", post.id);
+          await supabase
+            .from("content_posts")
+            .update({
+              status: "GENERATING",
+              caption_status: "GENERATING",
+              image_status: "GENERATING",
+              generation_error: null,
+            })
+            .eq("id", post.id);
 
-            const dispatchJob = await enqueueZernioDispatch({
-              postId: post.id,
-              workspaceId,
-              action: "create_scheduled_post",
-            });
+          // Fetch workspace context
+          const { data: bp } = await supabase
+            .from("business_profiles")
+            .select("*")
+            .eq("workspace_id", workspaceId)
+            .maybeSingle();
 
-            await supabase
-              .from("content_posts")
-              .update({
-                status: "SCHEDULED",
-                ai_review: {
-                  ...(genResult.aiReview || {}),
-                  dispatch_job_id: dispatchJob.jobId,
-                  queued_at: new Date().toISOString(),
-                  auto_approved: true,
-                },
-              })
-              .eq("id", post.id);
+          const { data: bk } = await supabase
+            .from("brand_kits")
+            .select("*")
+            .eq("workspace_id", workspaceId)
+            .maybeSingle();
 
-            finalPostStatus = "SCHEDULED";
-            console.log(`[Cron:content-generation] 🚀 Auto-Approve dispatched to Zernio BullMQ. Job: ${dispatchJob.jobId}`);
+          let { data: rawProducts } = await supabase
+            .from("products_services")
+            .select("*")
+            .eq("business_profile_id", bp?.id);
+
+          if (!rawProducts || rawProducts.length === 0) {
+            const fallbackProds = await supabase
+              .from("products_services")
+              .select("*")
+              .eq("workspace_id", workspaceId);
+            rawProducts = fallbackProds.data || [];
           }
-        } catch (cronApproveErr) {
-          console.warn("[Cron:content-generation] Auto-approve error:", cronApproveErr);
+
+          const products = (rawProducts || []).map((p: any) => ({
+            name: p.name || "",
+            price: p.price || undefined,
+            description: p.description || undefined,
+            benefits: p.benefits || undefined,
+          }));
+
+          const context: BusinessContext = {
+            businessName: bp?.business_name || "Bisnis Kami",
+            category: bp?.category || "Bisnis & Layanan",
+            description: bp?.description || "",
+            location: bp?.location || "",
+            website: bp?.website || "",
+            whatsapp: bp?.whatsapp || "",
+            targetAudience: bp?.target_audience || "Pelanggan Instagram",
+            products,
+            brandKit: {
+              primaryColor: bk?.primary_color || "#3B82F6",
+              secondaryColor: bk?.secondary_color || "#1E40AF",
+              writingTone: bk?.writing_tone || bk?.tone_of_voice || "Professional & Engaging",
+              visualStyle: bk?.visual_style || "Clean modern",
+              language: bk?.language || "Bahasa Indonesia",
+              emojiUsage: bk?.emoji_usage || bk?.emoji_style || "Medium",
+            },
+          };
+
+          const genResult = await runLazyGenerationForPost(post, context);
+
+          await supabase
+            .from("content_posts")
+            .update({
+              caption: genResult.caption,
+              hook: genResult.hook,
+              cta: genResult.cta,
+              hashtags: genResult.hashtags,
+              media_url: genResult.mediaUrl,
+              ai_score: genResult.aiScore,
+              ai_review: genResult.aiReview,
+              status: genResult.status,
+              caption_status: genResult.captionStatus,
+              image_status: genResult.imageStatus,
+              generation_error: genResult.error || null,
+              generated_at: new Date().toISOString(),
+            })
+            .eq("id", post.id);
+
+          let finalPostStatus = genResult.status;
+
+          // Auto-Approve check
+          if (genResult.status === "READY FOR APPROVAL") {
+            try {
+              const isAutoApprove = await checkIsAutoApproveEnabled(supabase, undefined, workspaceId);
+              if (isAutoApprove) {
+                console.log(`[Cron:content-generation] ⚡ Auto-Approve is ACTIVE for post ${post.id}. Scheduling to Zernio...`);
+                await supabase
+                  .from("content_posts")
+                  .update({ status: "APPROVED" })
+                  .eq("id", post.id);
+
+                const dispatchJob = await enqueueZernioDispatch({
+                  postId: post.id,
+                  workspaceId,
+                  action: "create_scheduled_post",
+                });
+
+                await supabase
+                  .from("content_posts")
+                  .update({
+                    status: "SCHEDULED",
+                    ai_review: {
+                      ...(genResult.aiReview || {}),
+                      dispatch_job_id: dispatchJob.jobId,
+                      queued_at: new Date().toISOString(),
+                      auto_approved: true,
+                    },
+                  })
+                  .eq("id", post.id);
+
+                finalPostStatus = "SCHEDULED";
+              }
+            } catch (cronApproveErr) {
+              console.warn("[Cron:content-generation] Auto-approve error:", cronApproveErr);
+            }
+          }
+
+          results.push({
+            id: post.id,
+            title: post.title,
+            status: finalPostStatus,
+            captionStatus: genResult.captionStatus,
+            imageStatus: genResult.imageStatus,
+            mode: "direct_fallback",
+          });
+        } catch (singlePostErr: any) {
+          console.error(`Error processing post ${post.id}:`, singlePostErr);
+          // Restore to PLANNED on failure so it doesn't stay stuck as GENERATING
+          await supabase
+            .from("content_posts")
+            .update({
+              status: "PLANNED",
+              caption_status: "FAILED",
+              image_status: "FAILED",
+              generation_error: singlePostErr.message || "Gagal memproses Lazy Generation.",
+            })
+            .eq("id", post.id);
+
+          results.push({
+            id: post.id,
+            title: post.title,
+            status: "PLANNED",
+            error: singlePostErr.message,
+            mode: "direct_fallback_failed",
+          });
         }
       }
-
-      results.push({
-        id: post.id,
-        title: post.title,
-        status: finalPostStatus,
-        captionStatus: genResult.captionStatus,
-        imageStatus: genResult.imageStatus,
-      });
     }
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil memproses ${results.length} post via Lazy Generation.`,
+      message: `Berhasil memproses ${results.length} post via Lazy Generation (${redisAlive ? "BullMQ Queue" : "Direct Fallback"}).`,
       processed: results.length,
+      redisActive: redisAlive,
       results,
     });
   } catch (err: any) {
