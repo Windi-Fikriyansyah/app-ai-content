@@ -29,6 +29,7 @@ import { createImageWorker } from "../lib/queue/workers/image-worker";
 import { createReviewWorker } from "../lib/queue/workers/review-worker";
 import { createZernioDispatchWorker } from "../lib/queue/workers/zernio-dispatch-worker";
 import { createZernioWebhookWorker } from "../lib/queue/workers/zernio-webhook-worker";
+import { createEmailWorker } from "../lib/queue/workers/email-worker";
 import { getRedisConnection } from "../lib/queue/redis";
 
 const redisDisplay = process.env.REDIS_URL
@@ -40,6 +41,7 @@ console.log("🚀 Starting Antigravity BullMQ Worker Service...");
 console.log(`📡 Redis:        ${redisDisplay}`);
 console.log(`🤖 Caption Model: ${process.env.OPENAI_MODEL || "gpt-5.6-luna"} (from env OPENAI_MODEL)`);
 console.log(`🎨 Image Model:   ${process.env.OPENAI_IMAGE_MODEL || "gpt-image-2"} (from env OPENAI_IMAGE_MODEL)`);
+console.log(`📧 Email Engine:  Brevo Transactional API`);
 console.log("=================================================");
 
 const planningWorker = createPlanningWorker();
@@ -49,6 +51,7 @@ const imageWorker = createImageWorker();
 const reviewWorker = createReviewWorker();
 const zernioDispatchWorker = createZernioDispatchWorker();
 const zernioWebhookWorker = createZernioWebhookWorker();
+const emailWorker = createEmailWorker();
 
 console.log("✅ [Queue: content-planning] Worker listening");
 console.log("✅ [Queue: content-generation] Worker listening");
@@ -57,8 +60,9 @@ console.log("✅ [Queue: image-generation] Worker listening");
 console.log("✅ [Queue: content-review] Worker listening");
 console.log("✅ [Queue: zernio-dispatch] Worker listening");
 console.log("✅ [Queue: zernio-webhook] Worker listening");
+console.log("✅ [Queue: email-notification] Worker listening");
 console.log("-------------------------------------------------");
-console.log("🎉 All 7 BullMQ workers are ready and waiting for jobs!");
+console.log("🎉 All 8 BullMQ workers are ready and waiting for jobs!");
 console.log("Press Ctrl+C to stop.\n");
 
 async function shutdown() {
@@ -71,6 +75,7 @@ async function shutdown() {
     reviewWorker.close(),
     zernioDispatchWorker.close(),
     zernioWebhookWorker.close(),
+    emailWorker.close(),
   ]);
 
   try {

@@ -19,6 +19,7 @@ import {
   Share2,
   BarChart3,
   Settings,
+  Bell,
   Zap,
   BookOpen,
   Terminal,
@@ -105,6 +106,11 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       name: "Analytics",
       icon: BarChart3,
       href: "/analytics",
+    },
+    {
+      name: "Notifikasi",
+      icon: Bell,
+      href: "/notifications",
     },
     {
       name: "Settings",

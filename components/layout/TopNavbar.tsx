@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   Menu,
   Search,
@@ -181,16 +182,15 @@ export default function TopNavbar({ onMenuClick }: TopNavbarProps) {
 
         {/* Trailing Icon Actions: Notifications & Help */}
         <div className="flex items-center gap-0.5 sm:gap-1">
-          <button
+          <Link
+            href="/notifications"
             className="relative p-2 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-            title="Notifikasi"
-            aria-label="Notifications"
+            title="Pengaturan Notifikasi Email"
+            aria-label="Pengaturan Notifikasi"
           >
             <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-error text-white font-label-sm text-[9px] sm:text-[10px] rounded-full flex items-center justify-center font-bold">
-              3
-            </span>
-          </button>
+            <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-surface-container-lowest" />
+          </Link>
           <button
             className="hidden sm:inline-flex p-2 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
             title="Help Center"

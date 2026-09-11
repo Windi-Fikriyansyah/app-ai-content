@@ -11,6 +11,7 @@ export const QUEUE_NAMES = {
   CONTENT_REVIEW: "content-review",
   ZERNIO_DISPATCH: "zernio-dispatch",
   ZERNIO_WEBHOOK: "zernio-webhook",
+  EMAIL_NOTIFICATION: "email-notification",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -97,6 +98,25 @@ export interface ZernioWebhookJobData {
   receivedAt: string;
 }
 
+export interface EmailNotificationJobData {
+  postId?: string;
+  workspaceId?: string;
+  userId?: string;
+  recipientEmail: string;
+  recipientName?: string;
+  subject: string;
+  event: "post.published" | "post.failed" | "test_notification";
+  postTitle?: string;
+  captionSnippet?: string;
+  mediaUrl?: string;
+  platform?: string;
+  publishedAt?: string;
+  zernioPostId?: string;
+  apiKey?: string;
+  senderEmail?: string;
+  senderName?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Queues Registry (Lazy Singleton)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -158,6 +178,10 @@ export const zernioWebhookQueue = {
   get: () => getOrCreateQueue<ZernioWebhookJobData>(QUEUE_NAMES.ZERNIO_WEBHOOK),
 };
 
+export const emailNotificationQueue = {
+  get: () => getOrCreateQueue<EmailNotificationJobData>(QUEUE_NAMES.EMAIL_NOTIFICATION),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Enqueue Dispatchers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,6 +232,13 @@ export async function enqueueZernioWebhook(data: ZernioWebhookJobData) {
   const queue = zernioWebhookQueue.get();
   const jobId = `zernio_wh_${data.zernioPostId}_${Date.now()}`;
   const job = await queue.add("process-webhook", data, { jobId });
+  return { jobId: job.id, name: job.name };
+}
+
+export async function enqueueEmailNotification(data: EmailNotificationJobData) {
+  const queue = emailNotificationQueue.get();
+  const jobId = `email_${data.event}_${data.postId || Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const job = await queue.add("send-email-notification", data, { jobId });
   return { jobId: job.id, name: job.name };
 }
 

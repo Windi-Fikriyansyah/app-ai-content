@@ -39,7 +39,7 @@ export function createZernioWebhookWorker() {
       // 1. Lookup post by zernio_post_id
       const { data: post, error: findErr } = await supabase
         .from("content_posts")
-        .select("id, title, status, zernio_post_id, scheduled_at, ai_review")
+        .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
         .eq("zernio_post_id", zernioPostId)
         .maybeSingle();
 
@@ -86,6 +86,39 @@ export function createZernioWebhookWorker() {
           .from("content_posts")
           .update(updatePayload)
           .eq("id", post.id);
+      }
+
+      // 3. Trigger Email Notification via Brevo & BullMQ when PUBLISHED
+      if (newStatus === "PUBLISHED") {
+        try {
+          const { resolveNotificationRecipient } = await import(
+            "../../../app/(dashboard)/notifications/actions"
+          );
+          const recipient = await resolveNotificationRecipient(post.workspace_id);
+
+          if (recipient && recipient.isActive && recipient.notifyOnPublish && recipient.email) {
+            console.log(
+              `[Worker:zernio-webhook] 📧 Post ${post.id} is PUBLISHED! Triggering email notification to ${recipient.email}...`
+            );
+            const { enqueueEmailNotification } = await import("../queues");
+            await enqueueEmailNotification({
+              postId: post.id,
+              workspaceId: post.workspace_id,
+              recipientEmail: recipient.email,
+              recipientName: recipient.recipientName,
+              subject: `🚀 [Published] "${post.title}" Berhasil Terbit di Instagram!`,
+              event: "post.published",
+              postTitle: post.title,
+              captionSnippet: post.caption ? `${post.caption.slice(0, 180)}...` : undefined,
+              mediaUrl: post.media_url,
+              platform: "Instagram / Threads",
+              publishedAt: nowIso,
+              zernioPostId: post.zernio_post_id,
+            });
+          }
+        } catch (notifyErr) {
+          console.warn("[Worker:zernio-webhook] Error enqueuing email notification:", notifyErr);
+        }
       }
 
       await job.updateProgress(100);

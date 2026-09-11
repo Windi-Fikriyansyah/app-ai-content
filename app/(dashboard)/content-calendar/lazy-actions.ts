@@ -1196,7 +1196,7 @@ export async function simulateZernioWebhookAction(
     const supabase = await createClient();
     const { data: post, error: postErr } = await supabase
       .from("content_posts")
-      .select("id, title, status, zernio_post_id, ai_review")
+      .select("id, title, status, zernio_post_id, ai_review, caption, media_url, workspace_id")
       .eq("id", postId)
       .maybeSingle();
 
@@ -1232,6 +1232,60 @@ export async function simulateZernioWebhookAction(
         .from("content_posts")
         .update(updatePayload)
         .eq("id", postId);
+    }
+
+    // Trigger Email Notification if PUBLISHED
+    if (newStatus === "PUBLISHED") {
+      try {
+        const { resolveNotificationRecipient } = await import(
+          "@/app/(dashboard)/notifications/actions"
+        );
+        const recipient = await resolveNotificationRecipient(post.workspace_id);
+
+        if (recipient && recipient.isActive && recipient.notifyOnPublish && recipient.email) {
+          console.log(
+            `[SimulateWebhook] 📧 Post ${post.id} is PUBLISHED! Triggering email notification to ${recipient.email}...`
+          );
+          const { isRedisConnected } = await import("@/lib/queue/redis");
+          const redisAlive = await isRedisConnected();
+
+          if (redisAlive) {
+            const { enqueueEmailNotification } = await import("@/lib/queue/queues");
+            await enqueueEmailNotification({
+              postId: post.id,
+              workspaceId: post.workspace_id,
+              recipientEmail: recipient.email,
+              recipientName: recipient.recipientName,
+              subject: `🚀 [Published] "${post.title}" Berhasil Terbit di Instagram!`,
+              event: "post.published",
+              postTitle: post.title,
+              captionSnippet: post.caption ? `${post.caption.slice(0, 180)}...` : undefined,
+              mediaUrl: post.media_url,
+              platform: "Instagram / Threads",
+              publishedAt: nowIso,
+              zernioPostId: post.zernio_post_id,
+            });
+          } else {
+            const { sendBrevoEmail, generatePublishedEmailHtml } = await import("@/lib/email/brevo");
+            await sendBrevoEmail({
+              to: recipient.email,
+              toName: recipient.recipientName,
+              subject: `🚀 [Published] "${post.title}" Berhasil Terbit di Instagram!`,
+              htmlContent: generatePublishedEmailHtml({
+                postTitle: post.title,
+                captionSnippet: post.caption ? `${post.caption.slice(0, 180)}...` : undefined,
+                mediaUrl: post.media_url,
+                platform: "Instagram / Threads",
+                publishedAt: nowIso,
+                zernioPostId: post.zernio_post_id,
+                recipientName: recipient.recipientName,
+              }),
+            });
+          }
+        }
+      } catch (notifyErr) {
+        console.warn("[SimulateWebhook] Error sending email notification:", notifyErr);
+      }
     }
 
     revalidatePath("/content-calendar");
