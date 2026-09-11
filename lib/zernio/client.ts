@@ -395,33 +395,52 @@ export class ZernioClient {
       isDraft: false,
       draft: false,
 
-      // 2. Target Platforms and Accounts with platform-specific customMedia
+      // 2. Target Platforms and Accounts with platform-specific customMedia and customContent
       platforms:
         params.platforms && params.platforms.length > 0
-          ? params.platforms.map((p) => ({
-              ...p,
-              customMedia: mediaUrls.map((url) => ({
-                type: "image",
-                url,
-              })),
-            }))
-          : params.accountIds.map((accId) => ({
-              platform: "instagram",
-              accountId: accId,
-              customMedia: mediaUrls.map((url) => ({
-                type: "image",
-                url,
-              })),
-            })),
+          ? params.platforms.map((p) => {
+              const item: Record<string, any> = { ...p };
+              if (mediaUrls.length > 0) {
+                item.customMedia = mediaUrls.map((url) => ({
+                  type: "image",
+                  url,
+                }));
+              }
+              // Threads has a strict 500-character limit per documentation
+              if (
+                p.platform?.toLowerCase() === "threads" &&
+                params.content &&
+                params.content.length > 500
+              ) {
+                item.customContent = params.content.slice(0, 495) + "...";
+              }
+              return item;
+            })
+          : params.accountIds.map((accId) => {
+              const item: Record<string, any> = {
+                platform: "instagram",
+                accountId: accId,
+              };
+              if (mediaUrls.length > 0) {
+                item.customMedia = mediaUrls.map((url) => ({
+                  type: "image",
+                  url,
+                }));
+              }
+              return item;
+            }),
       accountIds: params.accountIds,
 
       // 3. Content & Media
       content: params.content,
       mediaUrls,
-      mediaItems: mediaUrls.map((url) => ({
-        type: "image",
-        url,
-      })),
+      mediaItems:
+        mediaUrls.length > 0
+          ? mediaUrls.map((url) => ({
+              type: "image",
+              url,
+            }))
+          : undefined,
 
       // 4. Scheduling Parameters
       publishNow: Boolean(params.publishNow),
