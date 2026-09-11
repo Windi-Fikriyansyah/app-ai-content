@@ -134,12 +134,23 @@ export async function saveNotificationSettingsAction(
     // Get workspace ID
     let workspaceId: string | null = null;
     try {
-      const { data: ws } = await supabase
+      let { data: ws } = await supabase
         .from("workspaces")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("owner_id", user.id)
         .limit(1)
         .maybeSingle();
+
+      if (!ws) {
+        const fallback = await supabase
+          .from("workspaces")
+          .select("id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+        ws = fallback.data;
+      }
+
       if (ws?.id) workspaceId = ws.id;
     } catch {
       // ignore
@@ -259,82 +270,10 @@ export async function sendTestNotificationEmailAction(): Promise<{
   }
 }
 
-/**
- * Universal helper to resolve recipient notification settings for any workspace / user
- */
 export async function resolveNotificationRecipient(
   workspaceId?: string,
   userId?: string
-): Promise<NotificationSettingsData | null> {
-  const supabase = createAdminClient();
-
-  // 1. Try querying notification_settings table
-  if (workspaceId) {
-    try {
-      const { data: dbSetting } = await supabase
-        .from("notification_settings")
-        .select("email, recipient_name, is_active, notify_on_publish, notify_on_fail")
-        .eq("workspace_id", workspaceId)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (dbSetting && dbSetting.email) {
-        return {
-          email: dbSetting.email,
-          recipientName: dbSetting.recipient_name || undefined,
-          isActive: Boolean(dbSetting.is_active),
-          notifyOnPublish: Boolean(dbSetting.notify_on_publish),
-          notifyOnFail: Boolean(dbSetting.notify_on_fail),
-        };
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  // 2. Lookup user_id from workspace if only workspaceId is provided
-  let targetUserId = userId;
-  if (!targetUserId && workspaceId) {
-    try {
-      const { data: ws } = await supabase
-        .from("workspaces")
-        .select("user_id")
-        .eq("id", workspaceId)
-        .maybeSingle();
-      if (ws?.user_id) targetUserId = ws.user_id;
-    } catch {
-      // ignore
-    }
-  }
-
-  // 3. Try checking user metadata
-  if (targetUserId) {
-    try {
-      const { data: userData } = await supabase.auth.admin.getUserById(targetUserId);
-      const metaSetting = userData?.user?.user_metadata?.notification_settings;
-      if (metaSetting && metaSetting.email && metaSetting.isActive !== false) {
-        return {
-          email: metaSetting.email,
-          recipientName: metaSetting.recipientName || undefined,
-          isActive: Boolean(metaSetting.isActive),
-          notifyOnPublish: Boolean(metaSetting.notifyOnPublish),
-          notifyOnFail: Boolean(metaSetting.notifyOnFail),
-        };
-      }
-      // If no explicit settings but user has email, fallback to user's primary auth email
-      if (userData?.user?.email) {
-        return {
-          email: userData.user.email,
-          recipientName: userData.user.user_metadata?.name || undefined,
-          isActive: true,
-          notifyOnPublish: true,
-          notifyOnFail: true,
-        };
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  return null;
+) {
+  const { resolveNotificationRecipient: resolver } = await import("@/lib/email/brevo");
+  return resolver(workspaceId, userId);
 }

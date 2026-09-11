@@ -36,15 +36,44 @@ export function createZernioWebhookWorker() {
 
       const supabase = createAdminClient();
 
-      // 1. Lookup post by zernio_post_id
-      const { data: post, error: findErr } = await supabase
+      // 1. Multi-level lookup post
+      // Level 1: Match by zernioPostId
+      let { data: post } = await supabase
         .from("content_posts")
         .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
         .eq("zernio_post_id", zernioPostId)
         .maybeSingle();
 
-      if (findErr || !post) {
-        console.warn(`[Worker:zernio-webhook] ⚠️ Post with zernio_post_id '${zernioPostId}' not found in database.`);
+      // Level 2: Match by payload.post?.id
+      if (!post && payload?.post?.id && payload.post.id !== zernioPostId) {
+        const retryPostId = await supabase
+          .from("content_posts")
+          .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
+          .eq("zernio_post_id", payload.post.id)
+          .maybeSingle();
+        post = retryPostId.data;
+      }
+
+      // Level 3: Match by caption content snippet
+      const postContent = payload?.post?.content || payload?.content || payload?.data?.content;
+      if (!post && postContent && typeof postContent === "string" && postContent.length > 20) {
+        const snippet = postContent.slice(0, 50).trim();
+        const { data: matchedByCaption } = await supabase
+          .from("content_posts")
+          .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
+          .ilike("caption", `%${snippet}%`)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (matchedByCaption) {
+          post = matchedByCaption;
+          console.log(`[Worker:zernio-webhook] 🎯 Matched post ${post.id} by caption snippet! Linking zernio_post_id -> ${payload?.post?.id || zernioPostId}`);
+        }
+      }
+
+      if (!post) {
+        console.warn(`[Worker:zernio-webhook] ⚠️ Post with identifier '${zernioPostId}' not found in database.`);
         return {
           success: false,
           zernioPostId,
@@ -57,8 +86,10 @@ export function createZernioWebhookWorker() {
       await job.updateProgress(50);
 
       const nowIso = new Date().toISOString();
+      const resolvedZernioPostId = payload?.post?.id || zernioPostId;
       const updatePayload: Record<string, any> = {
         status: newStatus,
+        zernio_post_id: resolvedZernioPostId,
         ai_review: {
           ...(post.ai_review || {}),
           last_webhook_event: event,
@@ -66,6 +97,7 @@ export function createZernioWebhookWorker() {
           webhook_received_at: receivedAt,
           webhook_job_id: job.id,
           published_at: newStatus === "PUBLISHED" ? nowIso : (post.ai_review?.published_at || null),
+          instagram_url: payload?.post?.platforms?.[0]?.publishedUrl || (post.ai_review as any)?.instagram_url || null,
         },
       };
 
@@ -92,7 +124,7 @@ export function createZernioWebhookWorker() {
       if (newStatus === "PUBLISHED") {
         try {
           const { resolveNotificationRecipient } = await import(
-            "../../../app/(dashboard)/notifications/actions"
+            "../../email/brevo"
           );
           const recipient = await resolveNotificationRecipient(post.workspace_id);
 

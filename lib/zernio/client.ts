@@ -483,8 +483,14 @@ export class ZernioClient {
       };
     }
 
-    const responseData = res.data?.data || res.data;
-    const postId = responseData?.id || responseData?._id || `zernio_${Date.now()}`;
+    const responseData = res.data?.data || res.data?.post || res.data;
+    const postId =
+      responseData?.post?.id ||
+      responseData?.id ||
+      responseData?._id ||
+      res.data?.post?.id ||
+      res.data?.id ||
+      `zernio_${Date.now()}`;
     return {
       success: true,
       data: {

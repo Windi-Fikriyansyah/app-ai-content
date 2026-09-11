@@ -35,11 +35,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Resolve post identifier (Zernio ID)
+    // Priority:
+    // 1. payload.post?.id (Official Zernio webhook format: { event: 'post.published', post: { id: '...' } })
+    // 2. payload.post?.zernio_post_id, payload.post_id, payload.postId
+    // 3. payload.data?.post?.id, payload.data?.id
+    // 4. payload.id (only fallback if post object has no id)
     const zernioPostId =
+      payload.post?.id ||
+      payload.post?.zernio_post_id ||
+      payload.post_id ||
+      payload.postId ||
       payload.zernio_post_id ||
       payload.zernioPostId ||
-      payload.postId ||
-      payload.post_id ||
+      payload.data?.post?.id ||
       payload.data?.postId ||
       payload.data?.id ||
       payload.data?.zernio_post_id ||
@@ -63,7 +71,7 @@ export async function POST(req: NextRequest) {
         receivedAt: new Date().toISOString(),
       });
 
-      console.log(`[Webhook:Zernio] 🚀 Enqueued to 'zernio-webhook' BullMQ queue. Job ID: ${job.jobId}`);
+      console.log(`[Webhook:Zernio] 🚀 Enqueued to 'zernio-webhook' BullMQ queue. Job ID: ${job.jobId} (Post ID: ${zernioPostId})`);
 
       return NextResponse.json({
         success: true,
@@ -94,14 +102,43 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Find the post by zernio_post_id
-    const { data: post, error: findErr } = await supabase
+    // Multi-level post lookup:
+    // Level 1: Match by zernioPostId
+    let { data: post } = await supabase
       .from("content_posts")
       .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
       .eq("zernio_post_id", zernioPostId)
       .maybeSingle();
 
-    if (findErr || !post) {
+    // Level 2: Match by payload.post?.id
+    if (!post && payload.post?.id && payload.post.id !== zernioPostId) {
+      const retryPostId = await supabase
+        .from("content_posts")
+        .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
+        .eq("zernio_post_id", payload.post.id)
+        .maybeSingle();
+      post = retryPostId.data;
+    }
+
+    // Level 3: Match by caption snippet if Zernio sent content
+    const postContent = payload.post?.content || payload.content || payload.data?.content;
+    if (!post && postContent && typeof postContent === "string" && postContent.length > 20) {
+      const snippet = postContent.slice(0, 50).trim();
+      const { data: matchedByCaption } = await supabase
+        .from("content_posts")
+        .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
+        .ilike("caption", `%${snippet}%`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (matchedByCaption) {
+        post = matchedByCaption;
+        console.log(`[Webhook:Zernio] 🎯 Matched post ${post.id} by caption snippet! Linking zernio_post_id -> ${zernioPostId}`);
+      }
+    }
+
+    if (!post) {
       console.warn(`[Webhook:Zernio] ⚠️ No content post found for zernio_post_id: ${zernioPostId}`);
       return NextResponse.json(
         { success: false, error: `Post with zernio_post_id '${zernioPostId}' not found` },
@@ -147,7 +184,7 @@ export async function POST(req: NextRequest) {
     if (newStatus === "PUBLISHED") {
       try {
         const { resolveNotificationRecipient } = await import(
-          "@/app/(dashboard)/notifications/actions"
+          "@/lib/email/brevo"
         );
         const recipient = await resolveNotificationRecipient(post.workspace_id);
 

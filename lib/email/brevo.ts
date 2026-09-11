@@ -260,3 +260,94 @@ export function generateTestEmailHtml(
 </body>
 </html>`;
 }
+
+/**
+ * Universal helper to resolve recipient notification settings for any workspace / user
+ * Safe for both background BullMQ workers and Server Actions (uses Supabase Admin, zero cookies dependencies)
+ */
+export interface NotificationRecipientInfo {
+  email: string;
+  recipientName?: string;
+  isActive: boolean;
+  notifyOnPublish: boolean;
+  notifyOnFail: boolean;
+}
+
+export async function resolveNotificationRecipient(
+  workspaceId?: string,
+  userId?: string
+): Promise<NotificationRecipientInfo | null> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
+
+  // 1. Try querying notification_settings table by workspaceId
+  if (workspaceId) {
+    try {
+      const { data: dbSetting } = await supabase
+        .from("notification_settings")
+        .select("email, recipient_name, is_active, notify_on_publish, notify_on_fail")
+        .eq("workspace_id", workspaceId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (dbSetting && dbSetting.email) {
+        return {
+          email: dbSetting.email,
+          recipientName: dbSetting.recipient_name || undefined,
+          isActive: Boolean(dbSetting.is_active),
+          notifyOnPublish: Boolean(dbSetting.notify_on_publish),
+          notifyOnFail: Boolean(dbSetting.notify_on_fail),
+        };
+      }
+    } catch (err) {
+      console.warn("Notice querying notification_settings in resolveNotificationRecipient:", err);
+    }
+  }
+
+  // 2. Lookup owner_id from workspace
+  let targetUserId = userId;
+  if (!targetUserId && workspaceId) {
+    try {
+      const { data: ws } = await supabase
+        .from("workspaces")
+        .select("owner_id")
+        .eq("id", workspaceId)
+        .maybeSingle();
+      if (ws?.owner_id) targetUserId = ws.owner_id;
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. Check user metadata & primary auth email
+  if (targetUserId) {
+    try {
+      const { data: userData } = await supabase.auth.admin.getUserById(targetUserId);
+      const metaSetting = userData?.user?.user_metadata?.notification_settings;
+      if (metaSetting && metaSetting.email && metaSetting.isActive !== false) {
+        return {
+          email: metaSetting.email,
+          recipientName: metaSetting.recipientName || undefined,
+          isActive: Boolean(metaSetting.isActive),
+          notifyOnPublish: Boolean(metaSetting.notifyOnPublish),
+          notifyOnFail: Boolean(metaSetting.notifyOnFail),
+        };
+      }
+      // If user hasn't explicitly set email, fallback to user's primary auth email!
+      if (userData?.user?.email) {
+        return {
+          email: userData.user.email,
+          recipientName: userData.user.user_metadata?.name || userData.user.user_metadata?.full_name || undefined,
+          isActive: true,
+          notifyOnPublish: true,
+          notifyOnFail: true,
+        };
+      }
+    } catch (err) {
+      console.warn("Notice fetching user for notification in resolveNotificationRecipient:", err);
+    }
+  }
+
+  return null;
+}
+
