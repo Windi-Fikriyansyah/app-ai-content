@@ -54,6 +54,44 @@ async function handleCron(request: NextRequest) {
       .eq("caption_status", "PENDING")
       .lt("updated_at", tenMinutesAgo);
 
+    // 1c. Auto-Approve Sweep: Check any posts currently in READY FOR APPROVAL
+    let autoApprovedCount = 0;
+    try {
+      const { data: readyPosts } = await supabase
+        .from("content_posts")
+        .select("id, title, workspace_id, ai_review")
+        .eq("status", "READY FOR APPROVAL")
+        .limit(20);
+
+      if (readyPosts && readyPosts.length > 0) {
+        for (const rPost of readyPosts) {
+          if (!rPost.workspace_id) continue;
+          const isAuto = await checkIsAutoApproveEnabled(supabase, undefined, rPost.workspace_id);
+          if (isAuto) {
+            console.log(`[Cron:content-generation] ⚡ Auto-Approve sweep: Dispatching post ${rPost.id} to Zernio...`);
+            await supabase.from("content_posts").update({ status: "APPROVED" }).eq("id", rPost.id);
+            const dispatchJob = await enqueueZernioDispatch({
+              postId: rPost.id,
+              workspaceId: rPost.workspace_id,
+              action: "create_scheduled_post",
+            });
+            await supabase.from("content_posts").update({
+              status: "SCHEDULED",
+              ai_review: {
+                ...(rPost.ai_review || {}),
+                dispatch_job_id: dispatchJob.jobId,
+                queued_at: new Date().toISOString(),
+                auto_approved: true,
+              },
+            }).eq("id", rPost.id);
+            autoApprovedCount++;
+          }
+        }
+      }
+    } catch (sweepErr) {
+      console.warn("[Cron:content-generation] Auto-approve sweep error:", sweepErr);
+    }
+
     // 2. Query posts that are PLANNED and due within threshold
     const { data: duePosts, error: fetchErr } = await supabase
       .from("content_posts")
@@ -70,8 +108,11 @@ async function handleCron(request: NextRequest) {
     if (!duePosts || duePosts.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "Tidak ada post PLANNED yang mendekati jadwal (H-1 / 48 jam).",
+        message: autoApprovedCount > 0
+          ? `Auto-approved ${autoApprovedCount} posts to Zernio. Tidak ada post PLANNED baru yang mendekati jadwal.`
+          : "Tidak ada post PLANNED yang mendekati jadwal (H-1 / 48 jam).",
         processed: 0,
+        autoApprovedCount,
       });
     }
 

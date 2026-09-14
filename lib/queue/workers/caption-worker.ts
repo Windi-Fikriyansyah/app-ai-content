@@ -19,15 +19,51 @@ export function createCaptionWorker() {
       // Update post in Supabase
       const supabase = createAdminClient();
       if (result.success && result.caption) {
+        const { data: postData } = await supabase
+          .from("content_posts")
+          .select("media_url, image_status, workspace_id, ai_review")
+          .eq("id", postId)
+          .maybeSingle();
+
+        const hasImage = Boolean(postData?.media_url || postData?.image_status === "COMPLETED");
+        const updatePayload: any = {
+          caption: result.caption,
+          hook: result.hook || brief.hook,
+          cta: result.cta || brief.cta,
+          hashtags: result.hashtags || [],
+          caption_status: "COMPLETED",
+          ...(hasImage ? { status: "READY FOR APPROVAL" } : {}),
+        };
+
+        if (hasImage && postData?.workspace_id) {
+          try {
+            const { checkIsAutoApproveEnabled } = await import("@/app/(dashboard)/auto-approve-actions");
+            const isAutoApprove = await checkIsAutoApproveEnabled(supabase, undefined, postData.workspace_id);
+            if (isAutoApprove) {
+              console.log(`[Worker:caption-generation] ⚡ Auto-Approve is ACTIVE for post ${postId}. Scheduling to Zernio...`);
+              await supabase.from("content_posts").update({ status: "APPROVED" }).eq("id", postId);
+              const { enqueueZernioDispatch } = await import("../queues");
+              const dispatchJob = await enqueueZernioDispatch({
+                postId,
+                workspaceId: postData.workspace_id,
+                action: "create_scheduled_post",
+              });
+              updatePayload.status = "SCHEDULED";
+              updatePayload.ai_review = {
+                ...(postData.ai_review || {}),
+                dispatch_job_id: dispatchJob.jobId,
+                queued_at: new Date().toISOString(),
+                auto_approved: true,
+              };
+            }
+          } catch (autoErr) {
+            console.warn("[Worker:caption-generation] Auto-approve error:", autoErr);
+          }
+        }
+
         await supabase
           .from("content_posts")
-          .update({
-            caption: result.caption,
-            hook: result.hook || brief.hook,
-            cta: result.cta || brief.cta,
-            hashtags: result.hashtags || [],
-            caption_status: "COMPLETED",
-          })
+          .update(updatePayload)
           .eq("id", postId);
       } else {
         await supabase

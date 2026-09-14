@@ -21,7 +21,7 @@ export function createImageWorker() {
       if (result.success && result.mediaUrl) {
         const { data: postData } = await supabase
           .from("content_posts")
-          .select("caption, status")
+          .select("caption, status, workspace_id, ai_review")
           .eq("id", postId)
           .maybeSingle();
 
@@ -35,6 +35,32 @@ export function createImageWorker() {
           generation_error: null,
           ...(hasCaption ? { status: "READY FOR APPROVAL" } : {}),
         };
+
+        if (hasCaption && postData?.workspace_id) {
+          try {
+            const { checkIsAutoApproveEnabled } = await import("@/app/(dashboard)/auto-approve-actions");
+            const isAutoApprove = await checkIsAutoApproveEnabled(supabase, undefined, postData.workspace_id);
+            if (isAutoApprove) {
+              console.log(`[Worker:image-generation] ⚡ Auto-Approve is ACTIVE for post ${postId}. Scheduling to Zernio...`);
+              await supabase.from("content_posts").update({ status: "APPROVED" }).eq("id", postId);
+              const { enqueueZernioDispatch } = await import("../queues");
+              const dispatchJob = await enqueueZernioDispatch({
+                postId,
+                workspaceId: postData.workspace_id,
+                action: "create_scheduled_post",
+              });
+              updatePayload.status = "SCHEDULED";
+              updatePayload.ai_review = {
+                ...(postData.ai_review || {}),
+                dispatch_job_id: dispatchJob.jobId,
+                queued_at: new Date().toISOString(),
+                auto_approved: true,
+              };
+            }
+          } catch (autoErr) {
+            console.warn("[Worker:image-generation] Auto-approve error:", autoErr);
+          }
+        }
 
         const { error: imgUpdateErr } = await supabase
           .from("content_posts")
