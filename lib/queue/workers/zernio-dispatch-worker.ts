@@ -1,29 +1,23 @@
-import { Worker, Job } from "bullmq";
-import { getRedisConnection } from "../redis";
+import { Worker } from "bullmq";
 import { QUEUE_NAMES, ZernioDispatchJobData } from "../queues";
+import { getRedisConnection } from "../redis";
 import { createAdminClient } from "../../supabase/admin";
-import { ZernioClient } from "../../zernio/client";
+import { dispatchPostToZernio } from "@/lib/zernio/dispatch";
 
-export interface ZernioDispatchWorkerResult {
-  success: boolean;
-  postId: string;
-  zernioPostId?: string;
-  scheduledAt?: string;
-  status: string;
-  error?: string;
-}
-
+/**
+ * BullMQ Worker: Zernio Dispatch Worker
+ * Picks up APPROVED posts and schedules them to Zernio API using Multi-API Key distribution.
+ */
 export function createZernioDispatchWorker() {
-  const worker = new Worker<ZernioDispatchJobData, ZernioDispatchWorkerResult>(
+  const worker = new Worker<ZernioDispatchJobData>(
     QUEUE_NAMES.ZERNIO_DISPATCH,
-    async (job: Job<ZernioDispatchJobData>) => {
+    async (job) => {
       const { postId, workspaceId } = job.data;
-      console.log(`[Worker:zernio-dispatch] 🚀 [Job: ${job.id}] Dispatching post ${postId} to Zernio API...`);
-      await job.updateProgress(10);
+      console.log(`[Worker:zernio-dispatch] 🚀 Processing multi-key dispatch for post ${postId} (workspace ${workspaceId})`);
 
       const supabase = createAdminClient();
 
-      // 1. Fetch Post details
+      // 1. Fetch the post from database
       const { data: post, error: postErr } = await supabase
         .from("content_posts")
         .select("*")
@@ -36,217 +30,27 @@ export function createZernioDispatchWorker() {
 
       await job.updateProgress(30);
 
-      // 2. Prepare Media & Caption (Support Multi-slide Carousel)
-      let mediaUrls: string[] = [];
-      if (Array.isArray(post.media_urls) && post.media_urls.length > 0) {
-        mediaUrls = post.media_urls;
-      } else if (Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
-        mediaUrls = post.carousel_slides.map((s: any) => s.imageUrl).filter(Boolean);
-      } else if (post.media_url) {
-        mediaUrls = [post.media_url];
-      }
-
-      const hashtagsStr =
-        Array.isArray(post.hashtags) && post.hashtags.length > 0
-          ? `\n\n${post.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}`
-          : "";
-      const fullContent = `${post.caption || post.title}${hashtagsStr}`.trim();
-
-      // 3. Resolve Zernio API Key & Workspace
-      const { data: workspace } = await supabase
-        .from("workspaces")
-        .select("id, zernio_api_key, zernio_profile_id")
-        .eq("id", workspaceId)
-        .maybeSingle();
-
-      const zernioApiKey =
-        workspace?.zernio_api_key ||
-        process.env.ZERNIO_API_KEY ||
-        "zernio_sandbox_key";
-
-      // 4. Resolve All Active Connected Social Media Accounts (Multi-platform auto dispatch)
-      const isValidZernioId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
-
-      const { data: activeSocialAccounts } = await supabase
-        .from("social_accounts")
-        .select("id, provider, provider_account_id, username, status")
-        .eq("workspace_id", workspaceId)
-        .neq("status", "disconnected");
-
-      let accountIds: string[] = [];
-      let platforms: Array<{ platform: string; accountId: string }> = [];
-
-      if (activeSocialAccounts && activeSocialAccounts.length > 0) {
-        for (const acc of activeSocialAccounts) {
-          const accId = acc.provider_account_id;
-          if (accId && isValidZernioId(accId)) {
-            if (!accountIds.includes(accId)) {
-              accountIds.push(accId);
-              const prov = (acc.provider || "instagram").toLowerCase();
-              const platformKey = prov === "x" ? "twitter" : prov;
-
-              // For Threads: inject dedicated short caption as customContent
-              if (platformKey === "threads") {
-                const rawThreads =
-                  post.threads_caption ||
-                  (post.ai_review as Record<string, any>)?.threads_caption ||
-                  post.caption ||
-                  post.title ||
-                  "";
-                let threadsTxt = String(rawThreads).trim();
-                if (threadsTxt.length > 480) {
-                  const sliced = threadsTxt.slice(0, 475);
-                  const ls = sliced.lastIndexOf(" ");
-                  threadsTxt = (ls > 300 ? sliced.slice(0, ls) : sliced).trim() + "...";
-                }
-                platforms.push({
-                  platform: platformKey,
-                  accountId: accId,
-                  customContent: threadsTxt,
-                  content: threadsTxt,
-                } as any);
-              } else {
-                platforms.push({
-                  platform: platformKey,
-                  accountId: accId,
-                });
-              }
-            }
-          }
-        }
-      }
-
-      // 5. If no valid Zernio IDs in DB, dynamically query live accounts from Zernio
-      const zernioClient = new ZernioClient(zernioApiKey);
-
-      if (accountIds.length === 0) {
-        console.log(`[Worker:zernio-dispatch] 🔍 No valid 24-hex account IDs in DB. Querying live accounts from Zernio...`);
-        try {
-          const accountsRes = await zernioClient.getAccounts(workspace?.zernio_profile_id);
-          let remoteAccs: any[] = [];
-          const raw = accountsRes.data as any;
-          if (Array.isArray(raw)) remoteAccs = raw;
-          else if (raw && Array.isArray(raw.accounts)) remoteAccs = raw.accounts;
-          else if (raw && Array.isArray(raw.data)) remoteAccs = raw.data;
-
-          if (remoteAccs.length === 0) {
-            const allRes = await zernioClient.getAccounts();
-            const allRaw = allRes.data as any;
-            if (Array.isArray(allRaw)) remoteAccs = allRaw;
-            else if (allRaw && Array.isArray(allRaw.accounts)) remoteAccs = allRaw.accounts;
-            else if (allRaw && Array.isArray(allRaw.data)) remoteAccs = allRaw.data;
-          }
-
-          for (const ra of remoteAccs) {
-            const rId = ra._id || ra.id;
-            if (rId && isValidZernioId(rId)) {
-              if (!accountIds.includes(rId)) {
-                accountIds.push(rId);
-                const prov = (ra.platform || ra.provider || "instagram").toLowerCase();
-                platforms.push({
-                  platform: prov === "x" ? "twitter" : prov,
-                  accountId: rId,
-                });
-              }
-            }
-          }
-        } catch (zFetchErr: any) {
-          console.warn(`[Worker:zernio-dispatch] ⚠️ Could not fetch live Zernio accounts:`, zFetchErr.message);
-        }
-      }
-
-      if (accountIds.length === 0) {
-        throw new Error("Tidak ada akun media sosial yang valid terhubung ke Zernio. Harap periksa menu Social Accounts.");
-      }
-
-      const zernioAccountId = accountIds[0];
-      const platformNames = Array.from(new Set(platforms.map((p) => p.platform))).join(", ");
-
-      // 6. Calculate ISO Scheduled Date Time (Asia/Jakarta +07:00)
-      const scheduledDateStr = post.scheduled_date || new Date().toISOString().split("T")[0];
-      const scheduledTimeStr = post.scheduled_time || "19:00:00";
-      const scheduledAtStr = `${scheduledDateStr}T${scheduledTimeStr}+07:00`;
-      let scheduledAtDate = new Date(scheduledAtStr);
-      if (isNaN(scheduledAtDate.getTime())) {
-        scheduledAtDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      }
-
-      await job.updateProgress(50);
-
-      // If old Zernio post exists, delete it first to ensure no duplicates
-      const oldZernioPostId = post.zernio_post_id;
-      if (oldZernioPostId) {
-        console.log(`[Worker:zernio-dispatch] 🗑️ Deleting previous Zernio post ${oldZernioPostId} before scheduling new post...`);
-        try {
-          const delRes = await zernioClient.deletePost(oldZernioPostId);
-          console.log(`[Worker:zernio-dispatch] 🗑️ Delete old post result:`, delRes.success ? "Deleted ✅" : delRes.error);
-        } catch (delErr: any) {
-          console.warn(`[Worker:zernio-dispatch] ⚠️ Could not delete old post ${oldZernioPostId}:`, delErr.message);
-        }
-      }
-
-      console.log(`[Worker:zernio-dispatch] 📤 Sending to Zernio API: Accounts=[${accountIds.join(", ")}], Platforms=[${platformNames}], Format=${post.format}, ScheduledAt=${scheduledAtDate.toISOString()}`);
-
-      const zernioRes = await zernioClient.createPost({
-        accountIds,
-        platforms,
-        content: fullContent,
-        mediaUrls,
-        format: post.format,
-        scheduledAt: scheduledAtDate.toISOString(),
-        timezone: "Asia/Jakarta",
+      // 2. Dispatch via Multi-Key Dispatcher
+      const result = await dispatchPostToZernio({
+        supabase,
+        post,
+        workspaceId,
       });
 
-      if (!zernioRes.success) {
-        throw new Error(zernioRes.error || "Failed to create scheduled post in Zernio API");
-      }
-
-      await job.updateProgress(80);
-
-      const zernioPostId = zernioRes.data?.id || `zernio_post_${Date.now()}`;
-      console.log(`[Worker:zernio-dispatch] ✅ Post scheduled in Zernio: ${zernioPostId}`);
-
-      // 7. Update database: Status becomes SCHEDULED
-      const updatePayload: Record<string, any> = {
-        status: "SCHEDULED",
-        zernio_post_id: zernioPostId,
-        scheduled_at: scheduledAtDate.toISOString(),
-        platform: platformNames || post.platform || "instagram",
-        ai_review: {
-          ...(post.ai_review || {}),
-          zernio_account_id: zernioAccountId,
-          zernio_account_ids: accountIds,
-          platforms: platforms.map((p) => p.platform),
-          scheduled_at: scheduledAtDate.toISOString(),
-          dispatched_via: "bullmq_queue",
-          dispatched_at: new Date().toISOString(),
-        },
-      };
-
-      const { error: updateErr } = await supabase
-        .from("content_posts")
-        .update({
-          ...updatePayload,
-          zernio_account_id: zernioAccountId,
-        })
-        .eq("id", postId);
-
-      if (updateErr) {
-        // Fallback without zernio_account_id column
-        await supabase
-          .from("content_posts")
-          .update(updatePayload)
-          .eq("id", postId);
+      if (!result.success) {
+        throw new Error(result.error || "Gagal menjadwalkan postingan ke Zernio.");
       }
 
       await job.updateProgress(100);
+      console.log(`[Worker:zernio-dispatch] ✅ Post ${postId} successfully scheduled in Zernio: Primary PostId=${result.zernioPostId}`);
 
       return {
         success: true,
         postId,
-        zernioPostId,
-        scheduledAt: scheduledAtDate.toISOString(),
+        zernioPostId: result.zernioPostId,
+        scheduledAt: result.scheduledAt,
         status: "SCHEDULED",
+        dispatchMeta: result.dispatchMeta,
       };
     },
     {

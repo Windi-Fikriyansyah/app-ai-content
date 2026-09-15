@@ -54,6 +54,22 @@ export function createZernioWebhookWorker() {
         post = retryPostId.data;
       }
 
+      // Level 2b: Match inside zernio_dispatch_meta
+      if (!post) {
+        try {
+          const targetZpId = payload?.post?.id || zernioPostId;
+          const { data: matchedMeta } = await supabase
+            .from("content_posts")
+            .select("id, title, status, zernio_post_id, scheduled_at, ai_review, caption, media_url, workspace_id")
+            .filter("zernio_dispatch_meta", "cs", JSON.stringify([{ zernio_post_id: targetZpId }]))
+            .limit(1)
+            .maybeSingle();
+          if (matchedMeta) post = matchedMeta;
+        } catch {
+          // ignore filter error
+        }
+      }
+
       // Level 3: Match by caption content snippet
       const postContent = payload?.post?.content || payload?.content || payload?.data?.content;
       if (!post && postContent && typeof postContent === "string" && postContent.length > 20) {

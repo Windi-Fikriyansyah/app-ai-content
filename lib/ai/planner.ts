@@ -45,7 +45,7 @@ export interface ContentPlanItem {
   cta: string;
   visual_direction: string;
   format: "Feed" | "Carousel" | "Reels" | "Story";
-  platform: "instagram";
+  platform: string;
   status: "PLANNED" | "GENERATING" | "READY FOR APPROVAL" | "REVIEW" | "APPROVED" | "SCHEDULED" | "PUBLISHED" | "FAILED" | string;
   // Enhanced fields from temuan.md
   angle?: string;
@@ -74,6 +74,8 @@ export interface ContentPlanItem {
   // Zernio Publishing fields
   zernio_post_id?: string | null;
   zernio_account_id?: string | null;
+  zernio_dispatch_meta?: any[] | null;
+  target_platforms?: string[];
   scheduled_at?: string | null;
   published_at?: string | null;
 }

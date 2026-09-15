@@ -16,6 +16,12 @@ export async function get30DayPlanStatus(): Promise<{
   hasPlans: boolean;
   totalPlans: number;
   upcomingPlans: ContentPlanItem[];
+  connectedAccounts: Array<{
+    id: string;
+    provider: string;
+    username: string;
+    status: string;
+  }>;
   businessName: string;
   businessCategory: string;
   error?: string;
@@ -31,6 +37,7 @@ export async function get30DayPlanStatus(): Promise<{
       hasPlans: false,
       totalPlans: 0,
       upcomingPlans: [],
+      connectedAccounts: [],
       businessName: "Bisnis Anda",
       businessCategory: "",
       error: "Pengguna tidak terautentikasi.",
@@ -76,9 +83,21 @@ export async function get30DayPlanStatus(): Promise<{
 
   let totalPlans = 0;
   let upcomingPlans: ContentPlanItem[] = [];
+  let connectedAccounts: Array<{ id: string; provider: string; username: string; status: string }> = [];
 
   if (workspaceId) {
     try {
+      // Fetch active connected social accounts
+      const { data: accounts } = await supabase
+        .from("social_accounts")
+        .select("id, provider, username, status")
+        .eq("workspace_id", workspaceId)
+        .neq("status", "disconnected");
+
+      if (accounts) {
+        connectedAccounts = accounts;
+      }
+
       const { data: posts, count } = await supabase
         .from("content_posts")
         .select("*", { count: "exact" })
@@ -104,7 +123,7 @@ export async function get30DayPlanStatus(): Promise<{
           cta: p.cta || "",
           visual_direction: p.visual_direction || "",
           format: p.format || "Feed",
-          platform: "instagram",
+          platform: p.platform || "instagram",
           status: p.status || "PLANNED",
           // Enhanced fields
           angle: p.angle || undefined,
@@ -114,14 +133,23 @@ export async function get30DayPlanStatus(): Promise<{
           data_sources: Array.isArray(p.data_sources) ? p.data_sources : [],
           // Lazy Generation & Review fields
           caption: p.caption || null,
+          threads_caption: p.threads_caption || null,
           hashtags: Array.isArray(p.hashtags) ? p.hashtags : [],
           media_url: p.media_url || null,
+          media_urls: Array.isArray(p.media_urls) ? p.media_urls : null,
+          carousel_slides: Array.isArray(p.carousel_slides) ? p.carousel_slides : null,
           ai_score: p.ai_score || null,
           ai_review: p.ai_review || null,
           caption_status: p.caption_status || "PENDING",
           image_status: p.image_status || "PENDING",
           generation_error: p.generation_error || null,
           generated_at: p.generated_at || null,
+          // Zernio Publishing fields
+          zernio_post_id: p.zernio_post_id || null,
+          zernio_account_id: p.zernio_account_id || null,
+          zernio_dispatch_meta: Array.isArray(p.zernio_dispatch_meta) ? p.zernio_dispatch_meta : null,
+          scheduled_at: p.scheduled_at || null,
+          published_at: p.published_at || null,
         }));
       }
     } catch (dbErr) {
@@ -134,6 +162,7 @@ export async function get30DayPlanStatus(): Promise<{
     hasPlans: totalPlans > 0,
     totalPlans,
     upcomingPlans,
+    connectedAccounts,
     businessName,
     businessCategory,
   };

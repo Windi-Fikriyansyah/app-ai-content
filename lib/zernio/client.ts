@@ -294,6 +294,26 @@ export class ZernioClient {
   }
 
   /**
+   * Get TikTok Connect OAuth URL: GET /v1/connect/tiktok
+   */
+  async getTikTokConnectUrl(params: {
+    profileId: string;
+    redirectUrl?: string;
+  }): Promise<{ success: boolean; authUrl?: string; error?: string }> {
+    return this.getConnectUrl("tiktok", params);
+  }
+
+  /**
+   * Get LinkedIn Connect OAuth URL: GET /v1/connect/linkedin
+   */
+  async getLinkedInConnectUrl(params: {
+    profileId: string;
+    redirectUrl?: string;
+  }): Promise<{ success: boolean; authUrl?: string; error?: string }> {
+    return this.getConnectUrl("linkedin", params);
+  }
+
+  /**
    * List Connected Accounts: GET /v1/accounts
    */
   async getAccounts(profileId?: string) {
@@ -389,6 +409,10 @@ export class ZernioClient {
       };
     }
 
+    const isVideoUrl = (u: string) => /\.(mp4|mov|webm|avi)(\?.*)?$/i.test(u) || u.includes("/video");
+    const hasVideo = mediaUrls.some((u) => isVideoUrl(u));
+    const isImageOnly = mediaUrls.length > 0 && !hasVideo;
+
     // Prepare unified payload matching official Zernio API specification
     const payload = {
       // 1. Explicitly mark as NOT DRAFT so it enters SCHEDULED queue
@@ -402,7 +426,7 @@ export class ZernioClient {
               const item: Record<string, any> = { ...p };
               if (mediaUrls.length > 0) {
                 item.customMedia = mediaUrls.map((url) => ({
-                  type: "image",
+                  type: isVideoUrl(url) ? "video" : "image",
                   url,
                 }));
               }
@@ -414,6 +438,16 @@ export class ZernioClient {
               ) {
                 item.customContent = params.content.slice(0, 495) + "...";
               }
+              // TikTok: Auto music is enabled ONLY for images/photos (not for videos)
+              if (p.platform?.toLowerCase() === "tiktok") {
+                if (isImageOnly) {
+                  item.autoAddMusic = true;
+                  item.auto_add_music = true;
+                } else {
+                  item.autoAddMusic = false;
+                  item.auto_add_music = false;
+                }
+              }
               return item;
             })
           : params.accountIds.map((accId) => {
@@ -423,7 +457,7 @@ export class ZernioClient {
               };
               if (mediaUrls.length > 0) {
                 item.customMedia = mediaUrls.map((url) => ({
-                  type: "image",
+                  type: isVideoUrl(url) ? "video" : "image",
                   url,
                 }));
               }
@@ -437,7 +471,7 @@ export class ZernioClient {
       mediaItems:
         mediaUrls.length > 0
           ? mediaUrls.map((url) => ({
-              type: "image",
+              type: /\.(mp4|mov|webm|avi)(\?.*)?$/i.test(url) || url.includes("/video") ? "video" : "image",
               url,
             }))
           : undefined,
@@ -448,6 +482,15 @@ export class ZernioClient {
       scheduledAt: targetTime,  // Alternate/CLI compatibility
       timezone: params.timezone || "Asia/Jakarta",
     };
+
+    const hasTikTok = (params.platforms || []).some((p) => p.platform?.toLowerCase() === "tiktok");
+    if (hasTikTok && isImageOnly) {
+      (payload as any).autoAddMusic = true;
+      (payload as any).auto_add_music = true;
+      (payload as any).tiktok = {
+        autoAddMusic: true,
+      };
+    }
 
     const requestId = params.requestId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 

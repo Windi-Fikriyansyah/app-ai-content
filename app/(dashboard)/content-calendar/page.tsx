@@ -40,6 +40,14 @@ import {
   republishPostToZernioAction,
 } from "./lazy-actions";
 import type { ContentPlanItem } from "@/lib/ai/planner";
+import {
+  CalendarCardPlatformRow,
+  PlatformMiniBadge,
+  ModalZernioDispatchTargets,
+  getPostTargetPlatforms,
+  isPostDispatchedToZernio,
+  ConnectedSocialAccountItem,
+} from "./platform-badges";
 
 const WEEKDAYS = [
   { short: "MON", id: "Senin" },
@@ -80,6 +88,7 @@ const PILLARS_LIST = [
 export default function ContentCalendarPage() {
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<ContentPlanItem[]>([]);
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedSocialAccountItem[]>([]);
   const [selectedPillar, setSelectedPillar] = useState<string>("All");
   const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar");
 
@@ -589,8 +598,13 @@ export default function ContentCalendarPage() {
       setLoading(true);
       try {
         const res = await get30DayPlanStatus();
-        if (res.success && res.upcomingPlans) {
-          setPlans(res.upcomingPlans);
+        if (res.success) {
+          if (res.upcomingPlans) {
+            setPlans(res.upcomingPlans);
+          }
+          if (res.connectedAccounts) {
+            setConnectedAccounts(res.connectedAccounts);
+          }
         }
       } catch (e) {
         console.error("Error loading calendar plans:", e);
@@ -969,6 +983,7 @@ export default function ContentCalendarPage() {
                   <div className="space-y-1.5 flex-1">
                     {dayPosts.map((post) => {
                       const colorClass = getTypeColor(post.content_type || post.pillar);
+                      const targetPlatforms = getPostTargetPlatforms(post, connectedAccounts);
                       return (
                         <button
                           key={post.id || post.dayIndex}
@@ -1015,6 +1030,12 @@ export default function ContentCalendarPage() {
                           <p className="line-clamp-2 leading-tight font-semibold group-hover:underline">
                             {post.title}
                           </p>
+
+                          {/* Target Social Media Badges */}
+                          <CalendarCardPlatformRow
+                            platforms={targetPlatforms}
+                            status={post.status}
+                          />
                         </button>
                       );
                     })}
@@ -1044,6 +1065,7 @@ export default function ContentCalendarPage() {
                 <tr>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Content</th>
+                  <th className="py-3 px-4">Destinasi</th>
                   <th className="py-3 px-4">Type</th>
                   <th className="py-3 px-4">Format</th>
                   <th className="py-3 px-4">Status</th>
@@ -1051,35 +1073,53 @@ export default function ContentCalendarPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/20 font-medium">
-                {filteredPlans.map((plan) => (
-                  <tr
-                    key={plan.id || plan.dayIndex}
-                    className="hover:bg-surface-container-low/40 transition-colors cursor-pointer"
-                    onClick={() => setActivePost(plan)}
-                  >
-                    <td className="py-3.5 px-4 font-bold text-on-surface whitespace-nowrap">
-                      {formatShortDate(plan.scheduledDate)}
-                      <span className="block text-[10px] text-outline font-normal">
-                        {plan.scheduledTime || "19:00"}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 max-w-sm">
-                      <div className="font-bold text-on-surface text-sm">
-                        {plan.title}
-                      </div>
-                      <div className="text-[11px] text-outline truncate mt-0.5">
-                        Hook: &ldquo;{plan.hook}&rdquo;
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${getTypeColor(
-                          plan.content_type
-                        )}`}
-                      >
-                        {plan.content_type}
-                      </span>
-                    </td>
+                {filteredPlans.map((plan) => {
+                  const targetPlatforms = getPostTargetPlatforms(plan, connectedAccounts);
+                  return (
+                    <tr
+                      key={plan.id || plan.dayIndex}
+                      className="hover:bg-surface-container-low/40 transition-colors cursor-pointer"
+                      onClick={() => setActivePost(plan)}
+                    >
+                      <td className="py-3.5 px-4 font-bold text-on-surface whitespace-nowrap">
+                        {formatShortDate(plan.scheduledDate)}
+                        <span className="block text-[10px] text-outline font-normal">
+                          {plan.scheduledTime || "19:00"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 max-w-sm">
+                        <div className="font-bold text-on-surface text-sm">
+                          {plan.title}
+                        </div>
+                        <div className="text-[11px] text-outline truncate mt-0.5">
+                          Hook: &ldquo;{plan.hook}&rdquo;
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {isPostDispatchedToZernio(plan.status) ? (
+                          <div
+                            className="flex items-center gap-1.5"
+                            title={`Zernio dispatch: ${targetPlatforms.map((p) => p.toUpperCase()).join(", ")}`}
+                          >
+                            {targetPlatforms.map((plat) => (
+                              <PlatformMiniBadge key={plat} platform={plat} size="sm" />
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-outline/40 font-mono">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${getTypeColor(
+                            plan.content_type
+                          )}`}
+                        >
+                          {plan.content_type}
+                        </span>
+                      </td>
                     <td className="py-3.5 px-4 text-outline whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5 font-semibold text-on-surface-variant">
                         {plan.format === "Carousel" ? (
@@ -1138,8 +1178,9 @@ export default function ContentCalendarPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                );
+              })}
+            </tbody>
             </table>
           </div>
         </div>
@@ -1184,9 +1225,24 @@ export default function ContentCalendarPage() {
                       ? "PERLU REVISI ⚠️"
                       : activePost.status || "PLANNED"}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 font-bold text-[10px] border border-pink-200">
-                    Instagram · {activePost.format}
-                  </span>
+                  {isPostDispatchedToZernio(activePost.status) ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant/40 text-[10px] font-bold">
+                      <span className="text-on-surface-variant font-medium text-[9px] uppercase tracking-wider">
+                        Destinasi Zernio:
+                      </span>
+                      <div className="flex items-center -space-x-1">
+                        {getPostTargetPlatforms(activePost, connectedAccounts).map((plat) => (
+                          <PlatformMiniBadge key={plat} platform={plat} size="xs" />
+                        ))}
+                      </div>
+                      <span className="text-outline">·</span>
+                      <span className="text-on-surface">{activePost.format}</span>
+                    </div>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-bold text-[10px] border border-outline-variant/30">
+                      Format: {activePost.format}
+                    </span>
+                  )}
                   <span className="text-xs text-outline font-mono">
                     {activePost.scheduledDate} {activePost.scheduledTime}
                   </span>
@@ -1230,6 +1286,15 @@ export default function ContentCalendarPage() {
                   )}
                   <span className="font-medium flex-1">{lazyFeedback.message}</span>
                 </div>
+              )}
+
+              {/* Saluran Media Sosial Tujuan Zernio (Hanya tampil ketika sudah dikirim/terjadwal ke Zernio) */}
+              {isPostDispatchedToZernio(activePost.status) && (
+                <ModalZernioDispatchTargets
+                  platforms={getPostTargetPlatforms(activePost, connectedAccounts)}
+                  connectedAccounts={connectedAccounts}
+                  format={activePost.format}
+                />
               )}
 
               {/* GENERATING LOADING CARD */}
@@ -1404,13 +1469,15 @@ export default function ContentCalendarPage() {
                   <div>
                     <div className="font-bold flex items-center gap-1.5 text-blue-900 text-xs">
                       <Clock className="w-4 h-4 text-blue-600" />
-                      <span>Terjadwal Otomatis di Zernio (Instagram):</span>
+                      <span>
+                        Terjadwal Otomatis di Zernio ({getPostTargetPlatforms(activePost, connectedAccounts).map((p) => p.toUpperCase()).join(", ")}):
+                      </span>
                     </div>
                     <p className="text-[11px] text-blue-800 mt-0.5 leading-relaxed">
-                      Postingan akan otomatis terbit ke Instagram pada <strong>{activePost.scheduledDate} {activePost.scheduledTime} WIB</strong>.
+                      Postingan akan otomatis terbit ke platform tujuan pada <strong>{activePost.scheduledDate} {activePost.scheduledTime} WIB</strong>.
                       {activePost.zernio_post_id && (
                         <span className="block font-mono text-[10px] text-blue-600/90 mt-0.5">
-                          Zernio ID: {activePost.zernio_post_id}
+                          Zernio Post ID: {activePost.zernio_post_id}
                         </span>
                       )}
                     </p>
@@ -1450,13 +1517,13 @@ export default function ContentCalendarPage() {
                     </div>
                     <div>
                       <div className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
-                        <span>✓ Telah Terbit di Instagram</span>
+                        <span>✓ Telah Terbit di Saluran Media Sosial</span>
                         <span className="px-2 py-0.2 rounded-full bg-emerald-200/70 text-emerald-800 text-[10px] font-mono font-bold">
                           PUBLISHED
                         </span>
                       </div>
                       <p className="text-[11px] text-emerald-800 mt-0.5">
-                        Konten telah berhasil dipublikasikan via infrastruktur Zernio.
+                        Konten telah berhasil dipublikasikan ke {getPostTargetPlatforms(activePost, connectedAccounts).map((p) => p.toUpperCase()).join(", ")} via infrastruktur Zernio.
                       </p>
                     </div>
                   </div>

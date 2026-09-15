@@ -302,218 +302,19 @@ export async function approvePostAction(postId: string): Promise<{
     }
 
     // 4. Fallback: Direct synchronous Zernio scheduling if Redis is offline
-    console.log(`[ZernioPublish] 🔄 Executing direct Zernio scheduling pipeline...`);
-
-    // Prepare Media (Support Multi-slide Carousel)
-    let mediaUrls: string[] = [];
-    if (Array.isArray(post.media_urls) && post.media_urls.length > 0) {
-      mediaUrls = post.media_urls;
-    } else if (Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
-      mediaUrls = post.carousel_slides.map((s: any) => s.imageUrl).filter(Boolean);
-    } else if (post.media_url) {
-      mediaUrls = [post.media_url];
-    }
-
-    // Format content with hashtags
-    const hashtagsStr = Array.isArray(post.hashtags) && post.hashtags.length > 0
-      ? `\n\n${post.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}`
-      : "";
-    const fullContent = `${post.caption || post.title}${hashtagsStr}`.trim();
-
-    // 4. Resolve Zernio API Key & Workspace
-    const workspaceId = post.workspace_id;
-    const { data: workspace } = await supabase
-      .from("workspaces")
-      .select("id, zernio_api_key, zernio_profile_id")
-      .eq("id", workspaceId)
-      .maybeSingle();
-
-    const zernioApiKey =
-      workspace?.zernio_api_key ||
-      process.env.ZERNIO_API_KEY ||
-      "zernio_sandbox_key";
-
-    // 5. Resolve All Active Connected Social Accounts from social_accounts table
-    const isValidZernioId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
-
-    const { data: activeSocialAccounts } = await supabase
-      .from("social_accounts")
-      .select("id, provider, provider_account_id, username, status")
-      .eq("workspace_id", workspaceId)
-      .neq("status", "disconnected");
-
-    let accountIds: string[] = [];
-    let platforms: Array<{ platform: string; accountId: string }> = [];
-
-    if (activeSocialAccounts && activeSocialAccounts.length > 0) {
-      for (const acc of activeSocialAccounts) {
-        const accId = acc.provider_account_id;
-        if (accId && isValidZernioId(accId)) {
-          if (!accountIds.includes(accId)) {
-            accountIds.push(accId);
-            const prov = (acc.provider || "instagram").toLowerCase();
-            const platformKey = prov === "x" ? "twitter" : prov;
-
-            // For Threads: inject dedicated short caption as customContent
-            if (platformKey === "threads") {
-              const rawThreads =
-                post.threads_caption ||
-                (post.ai_review as Record<string, any>)?.threads_caption ||
-                post.caption ||
-                post.title ||
-                "";
-              let threadsTxt = String(rawThreads).trim();
-              if (threadsTxt.length > 480) {
-                const sliced = threadsTxt.slice(0, 475);
-                const ls = sliced.lastIndexOf(" ");
-                threadsTxt = (ls > 300 ? sliced.slice(0, ls) : sliced).trim() + "...";
-              }
-              platforms.push({
-                platform: platformKey,
-                accountId: accId,
-                customContent: threadsTxt,
-                content: threadsTxt,
-              } as any);
-            } else {
-              platforms.push({
-                platform: platformKey,
-                accountId: accId,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    const { ZernioClient } = await import("@/lib/zernio/client");
-    const zernioClient = new ZernioClient(zernioApiKey);
-
-    if (accountIds.length === 0) {
-      console.log(`[ZernioPublish] 🔍 No valid 24-hex account IDs in DB. Querying live accounts from Zernio...`);
-      try {
-        const accountsRes = await zernioClient.getAccounts(workspace?.zernio_profile_id);
-        let remoteAccs: any[] = [];
-        const raw = accountsRes.data as any;
-        if (Array.isArray(raw)) remoteAccs = raw;
-        else if (raw && Array.isArray(raw.accounts)) remoteAccs = raw.accounts;
-        else if (raw && Array.isArray(raw.data)) remoteAccs = raw.data;
-
-        if (remoteAccs.length === 0) {
-          const allRes = await zernioClient.getAccounts();
-          const allRaw = allRes.data as any;
-          if (Array.isArray(allRaw)) remoteAccs = allRaw;
-          else if (allRaw && Array.isArray(allRaw.accounts)) remoteAccs = allRaw.accounts;
-          else if (allRaw && Array.isArray(allRaw.data)) remoteAccs = allRaw.data;
-        }
-
-        for (const ra of remoteAccs) {
-          const rId = ra._id || ra.id;
-          if (rId && isValidZernioId(rId)) {
-            if (!accountIds.includes(rId)) {
-              accountIds.push(rId);
-              const prov = (ra.platform || ra.provider || "instagram").toLowerCase();
-              platforms.push({
-                platform: prov === "x" ? "twitter" : prov,
-                accountId: rId,
-              });
-            }
-          }
-        }
-      } catch (zFetchErr: any) {
-        console.warn(`[ZernioPublish] ⚠️ Could not fetch live Zernio accounts:`, zFetchErr.message);
-      }
-    }
-
-    if (accountIds.length === 0) {
-      return {
-        success: false,
-        error: "Tidak ada akun media sosial yang valid terhubung ke Zernio. Harap hubungkan akun di menu Social Accounts.",
-      };
-    }
-
-    const zernioAccountId = accountIds[0];
-    const platformNames = Array.from(new Set(platforms.map((p) => p.platform))).join(", ");
-
-    // 6. Calculate ISO Scheduled Date Time (Asia/Jakarta +07:00)
-    const scheduledDateStr = post.scheduled_date || new Date().toISOString().split("T")[0];
-    const scheduledTimeStr = post.scheduled_time || "19:00:00";
-    
-    // Construct local date time object in Asia/Jakarta timezone
-    const scheduledAtStr = `${scheduledDateStr}T${scheduledTimeStr}+07:00`;
-    let scheduledAtDate = new Date(scheduledAtStr);
-    if (isNaN(scheduledAtDate.getTime())) {
-      scheduledAtDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // tomorrow fallback
-    }
-
-    // If an old post exists in Zernio, delete it first to avoid duplicate schedules
-    if (post.zernio_post_id) {
-      console.log(`[ZernioPublish] 🗑️ Deleting previous Zernio post ${post.zernio_post_id} before scheduling new post...`);
-      try {
-        const delRes = await zernioClient.deletePost(post.zernio_post_id);
-        console.log(`[ZernioPublish] 🗑️ Delete old post result:`, delRes.success ? "Deleted ✅" : delRes.error);
-      } catch (delErr: any) {
-        console.warn(`[ZernioPublish] ⚠️ Could not delete old post ${post.zernio_post_id}:`, delErr.message);
-      }
-    }
-
-    console.log(`[ZernioPublish] 📤 Creating Scheduled Post in Zernio:`);
-    console.log(`  - Accounts:     ${accountIds.join(", ")}`);
-    console.log(`  - Platforms:    ${platformNames}`);
-    console.log(`  - Format:       ${post.format || "Feed"}`);
-    console.log(`  - Scheduled At: ${scheduledAtDate.toISOString()}`);
-    console.log(`  - Media:        ${mediaUrls.length > 0 ? `${mediaUrls.length} image(s) ✅` : "No media"}`);
-
-    const zernioRes = await zernioClient.createPost({
-      accountIds,
-      platforms,
-      content: fullContent,
-      mediaUrls,
-      format: post.format,
-      scheduledAt: scheduledAtDate.toISOString(),
-      timezone: "Asia/Jakarta",
+    console.log(`[ZernioPublish] 🔄 Executing direct multi-key Zernio scheduling pipeline...`);
+    const { dispatchPostToZernio } = await import("@/lib/zernio/dispatch");
+    const dispatchRes = await dispatchPostToZernio({
+      supabase,
+      post,
+      workspaceId: post.workspace_id,
     });
 
-    if (!zernioRes.success) {
-      console.error(`[ZernioPublish] ❌ Failed to create post in Zernio:`, zernioRes.error);
+    if (!dispatchRes.success) {
       return {
         success: false,
-        error: zernioRes.error || "Gagal membuat jadwal postingan di Zernio.",
+        error: dispatchRes.error || "Gagal menjadwalkan postingan ke Zernio.",
       };
-    }
-
-    const zernioPostId = zernioRes.data?.id || `zernio_post_${Date.now()}`;
-    console.log(`[ZernioPublish] ✅ Successfully scheduled in Zernio with ID: ${zernioPostId}`);
-
-    // 8. Update database: Status becomes SCHEDULED
-    const updatePayload: Record<string, any> = {
-      status: "SCHEDULED",
-      zernio_post_id: zernioPostId,
-      scheduled_at: scheduledAtDate.toISOString(),
-      platform: platformNames || post.platform || "instagram",
-      ai_review: {
-        ...(post.ai_review || {}),
-        zernio_account_id: zernioAccountId,
-        zernio_account_ids: accountIds,
-        platforms: platforms.map((p) => p.platform),
-        scheduled_at: scheduledAtDate.toISOString(),
-      },
-    };
-
-    // Try updating zernio_account_id if column exists
-    const { error: updateErr } = await supabase
-      .from("content_posts")
-      .update({
-        ...updatePayload,
-        zernio_account_id: zernioAccountId,
-      })
-      .eq("id", postId);
-
-    if (updateErr) {
-      // If zernio_account_id column doesn't exist yet, update without that column
-      await supabase
-        .from("content_posts")
-        .update(updatePayload)
-        .eq("id", postId);
     }
 
     revalidatePath("/content-calendar");
@@ -522,8 +323,8 @@ export async function approvePostAction(postId: string): Promise<{
     return {
       success: true,
       status: "SCHEDULED",
-      zernioPostId,
-      scheduledAt: scheduledAtDate.toISOString(),
+      zernioPostId: dispatchRes.zernioPostId,
+      scheduledAt: dispatchRes.scheduledAt,
     };
   } catch (err: any) {
     console.error("[ZernioPublish] ❌ Error in approvePostAction:", err);
@@ -1354,30 +1155,13 @@ export async function republishPostToZernioAction(postId: string): Promise<{
       return { success: false, error: "Data konten tidak ditemukan." };
     }
 
-    // 2. Delete old Zernio post if exists
-    const oldZernioPostId = post.zernio_post_id;
-    if (oldZernioPostId) {
-      console.log(`[ZernioRepublish] 🗑️ Deleting old Zernio post ${oldZernioPostId}...`);
-      try {
-        const { data: workspace } = await supabase
-          .from("workspaces")
-          .select("id, zernio_api_key")
-          .eq("id", post.workspace_id)
-          .maybeSingle();
-
-        const zernioApiKey =
-          workspace?.zernio_api_key ||
-          process.env.ZERNIO_API_KEY ||
-          "zernio_sandbox_key";
-
-        const { ZernioClient } = await import("@/lib/zernio/client");
-        const zernioClient = new ZernioClient(zernioApiKey);
-        const delRes = await zernioClient.deletePost(oldZernioPostId);
-        console.log(`[ZernioRepublish] 🗑️ Delete old post result:`, delRes.success ? "Deleted ✅" : delRes.error);
-      } catch (delErr: any) {
-        console.warn(`[ZernioRepublish] ⚠️ Could not delete old post ${oldZernioPostId}:`, delErr.message);
-      }
-    }
+    // 2. Delete old Zernio post if exists across all keys
+    const { deleteScheduledPostFromZernio } = await import("@/lib/zernio/dispatch");
+    await deleteScheduledPostFromZernio({
+      supabase,
+      post,
+      workspaceId: post.workspace_id,
+    });
 
     // 3. Clear old post id and set status to APPROVED
     await supabase
@@ -1388,7 +1172,7 @@ export async function republishPostToZernioAction(postId: string): Promise<{
         ai_review: {
           ...(post.ai_review || {}),
           republished_at: new Date().toISOString(),
-          previous_zernio_post_id: oldZernioPostId || null,
+          previous_zernio_post_id: post.zernio_post_id || null,
         },
       })
       .eq("id", postId);

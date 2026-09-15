@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ZernioClient, ZernioAccount } from "@/lib/zernio/client";
+import { getWorkspaceZernioKeys, getAvailableZernioKey, ZernioApiKeyRecord } from "@/lib/zernio/keys";
 import { revalidatePath } from "next/cache";
 
 export interface ConnectedAccount {
@@ -13,6 +14,19 @@ export interface ConnectedAccount {
   profilePictureUrl?: string;
   status: "connected" | "disconnected" | "expired";
   createdAt: string;
+  zernioKeyId?: string;
+  zernioKeyLabel?: string;
+}
+
+export interface ZernioKeyItem {
+  id: string;
+  label: string;
+  apiKey: string;
+  maskedApiKey: string;
+  profileId?: string | null;
+  maxAccounts: number;
+  connectedCount: number;
+  isActive: boolean;
 }
 
 export interface SocialAccountsData {
@@ -24,6 +38,9 @@ export interface SocialAccountsData {
     zernioProfileId?: string;
   };
   connectedAccounts: ConnectedAccount[];
+  apiKeys: ZernioKeyItem[];
+  totalCapacity: number;
+  totalUsed: number;
 }
 
 /**
@@ -35,7 +52,7 @@ async function getActiveWorkspaceInfo() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { user: null, workspace: null };
+  if (!user) return { user: null, workspace: null, supabase };
 
   let workspace: any = null;
   const userMetadata = user.user_metadata || {};
@@ -70,7 +87,7 @@ async function getActiveWorkspaceInfo() {
 }
 
 /**
- * 1. Fetch current Social Accounts & Zernio API Key state
+ * 1. Fetch current Social Accounts & Zernio API Keys state
  */
 export async function getSocialAccountsData(): Promise<{
   success: boolean;
@@ -80,23 +97,96 @@ export async function getSocialAccountsData(): Promise<{
   try {
     const { user, workspace, supabase } = await getActiveWorkspaceInfo();
 
-    if (!user) {
-      return { success: false, error: "Pengguna tidak terautentikasi." };
+    if (!user || !workspace?.id) {
+      return { success: false, error: "Pengguna tidak terautentikasi atau workspace tidak ditemukan." };
     }
 
-    const apiKey = workspace.zernio_api_key || "";
-    let connectedAccounts: ConnectedAccount[] = [];
+    // 1. Fetch all API keys registered for this workspace
+    const rawKeys = await getWorkspaceZernioKeys(supabase, workspace.id);
 
-    // If we have Supabase table public.social_accounts, query it
-    if (workspace.id) {
+    const keyMap = new Map<string, ZernioApiKeyRecord>();
+    rawKeys.forEach((k) => keyMap.set(k.id, k));
+
+    // 2. Fetch live accounts from Zernio for each API key to keep in sync
+    for (const k of rawKeys) {
+      if (!k.api_key || k.api_key.includes("your_zernio_api_key")) continue;
+
       try {
-        const { data: accounts } = await supabase!
-          .from("social_accounts")
-          .select("id, provider, provider_account_id, username, display_name, profile_picture_url, status, created_at")
-          .eq("workspace_id", workspace.id);
+        const zernio = new ZernioClient(k.api_key);
+        let zernioRes = await zernio.getAccounts(k.profile_id || undefined);
 
-        if (accounts && accounts.length > 0) {
-          connectedAccounts = accounts.map((a) => ({
+        let rawList: any = zernioRes.data;
+        let remoteAccounts: any[] = [];
+
+        if (Array.isArray(rawList)) remoteAccounts = rawList;
+        else if (rawList && Array.isArray(rawList.data)) remoteAccounts = rawList.data;
+        else if (rawList && Array.isArray(rawList.accounts)) remoteAccounts = rawList.accounts;
+
+        if (remoteAccounts.length === 0) {
+          const allRes = await zernio.getAccounts();
+          const allRaw: any = allRes.data;
+          if (Array.isArray(allRaw)) remoteAccounts = allRaw;
+          else if (allRaw && Array.isArray(allRaw.data)) remoteAccounts = allRaw.data;
+          else if (allRaw && Array.isArray(allRaw.accounts)) remoteAccounts = allRaw.accounts;
+        }
+
+        if (remoteAccounts.length > 0) {
+          for (const ra of remoteAccounts) {
+            const accId = ra._id || ra.id || ra.accountId;
+            if (!accId) continue;
+            const pName = (ra.platform || ra.provider || "instagram").toLowerCase();
+            const uName = ra.username || ra.accountUsername || ra.name || "user";
+            const dName = ra.displayName || ra.name || ra.accountUsername || uName;
+            const pic = ra.profile_picture_url || ra.profilePictureUrl || ra.avatarUrl || ra.avatar;
+
+            const upsertPayload: Record<string, any> = {
+              workspace_id: workspace.id,
+              provider: pName,
+              provider_account_id: accId,
+              username: uName,
+              display_name: dName,
+              profile_picture_url: pic || null,
+              status: "connected",
+              updated_at: new Date().toISOString(),
+            };
+
+            if (k.id && k.id !== "legacy_default") {
+              upsertPayload.zernio_key_id = k.id;
+            }
+
+            try {
+              await supabase.from("social_accounts").upsert(
+                upsertPayload,
+                { onConflict: "workspace_id,provider,provider_account_id" }
+              );
+            } catch (upsertErr) {
+              // Fallback without zernio_key_id column if table column not present yet
+              delete upsertPayload.zernio_key_id;
+              await supabase.from("social_accounts").upsert(
+                upsertPayload,
+                { onConflict: "workspace_id,provider,provider_account_id" }
+              );
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.warn(`Could not sync live Zernio accounts for key ${k.label}:`, syncErr);
+      }
+    }
+
+    // 3. Query all connected accounts from DB
+    let connectedAccounts: ConnectedAccount[] = [];
+    try {
+      const { data: accounts } = await supabase
+        .from("social_accounts")
+        .select("id, provider, provider_account_id, username, display_name, profile_picture_url, status, created_at, zernio_key_id")
+        .eq("workspace_id", workspace.id)
+        .neq("status", "disconnected");
+
+      if (accounts && accounts.length > 0) {
+        connectedAccounts = accounts.map((a: any) => {
+          const associatedKey = a.zernio_key_id ? keyMap.get(a.zernio_key_id) : undefined;
+          return {
             id: a.id,
             provider: a.provider,
             providerAccountId: a.provider_account_id,
@@ -105,94 +195,38 @@ export async function getSocialAccountsData(): Promise<{
             profilePictureUrl: a.profile_picture_url,
             status: a.status as any,
             createdAt: a.created_at,
-          }));
-        }
-      } catch (tableErr) {
-        console.warn("Notice: social_accounts table not found or empty:", tableErr);
+            zernioKeyId: a.zernio_key_id || undefined,
+            zernioKeyLabel: associatedKey ? associatedKey.label : (rawKeys[0]?.label || "API Key #1"),
+          };
+        });
       }
+    } catch (tableErr) {
+      console.warn("Notice: social_accounts select error:", tableErr);
     }
 
-    // If API key is configured, also attempt to fetch live accounts from Zernio to keep synchronized
-    if (apiKey) {
-      try {
-        const zernio = new ZernioClient(apiKey);
-        // Try with workspace.zernio_profile_id first
-        let zernioRes = await zernio.getAccounts(workspace.zernio_profile_id);
-        
-        let rawList: any = zernioRes.data;
-        let remoteAccounts: any[] = [];
+    // Format API keys for presentation
+    const formattedKeys: ZernioKeyItem[] = rawKeys.map((k) => {
+      const mask = k.api_key && k.api_key.length > 8
+        ? `${k.api_key.slice(0, 7)}••••••••••••${k.api_key.slice(-4)}`
+        : "••••••••";
+      const count = connectedAccounts.filter((a) => a.zernioKeyId === k.id).length;
+      return {
+        id: k.id,
+        label: k.label || "Zernio Key",
+        apiKey: k.api_key,
+        maskedApiKey: mask,
+        profileId: k.profile_id,
+        maxAccounts: k.max_accounts || 2,
+        connectedCount: count > 0 ? count : (k.connected_accounts_count || 0),
+        isActive: k.is_active,
+      };
+    });
 
-        if (Array.isArray(rawList)) {
-          remoteAccounts = rawList;
-        } else if (rawList && Array.isArray(rawList.data)) {
-          remoteAccounts = rawList.data;
-        } else if (rawList && Array.isArray(rawList.accounts)) {
-          remoteAccounts = rawList.accounts;
-        }
+    const primaryKey = rawKeys[0]?.api_key || workspace.zernio_api_key || "";
+    const isPrimaryConfigured = Boolean(primaryKey && primaryKey.length > 8 && !primaryKey.includes("your_zernio_api_key"));
 
-        // If nothing found with profileId filter, try fetching all accounts for this API key
-        if (remoteAccounts.length === 0) {
-          const allRes = await zernio.getAccounts();
-          const allRaw: any = allRes.data;
-          if (Array.isArray(allRaw)) {
-            remoteAccounts = allRaw;
-          } else if (allRaw && Array.isArray(allRaw.data)) {
-            remoteAccounts = allRaw.data;
-          } else if (allRaw && Array.isArray(allRaw.accounts)) {
-            remoteAccounts = allRaw.accounts;
-          }
-        }
-
-        if (remoteAccounts.length > 0) {
-          const mappedAccounts: ConnectedAccount[] = remoteAccounts.map((ra) => {
-            const accId = ra._id || ra.id || ra.accountId || String(Math.random());
-            const pName = (ra.platform || ra.provider || "instagram").toLowerCase();
-            const uName = ra.username || ra.accountUsername || ra.name || "instagram_user";
-            const dName = ra.displayName || ra.name || ra.accountUsername || uName;
-            const pic = ra.profile_picture_url || ra.profilePictureUrl || ra.avatarUrl || ra.avatar;
-
-            return {
-              id: accId,
-              provider: pName,
-              providerAccountId: accId,
-              username: uName,
-              displayName: dName,
-              profilePictureUrl: pic,
-              status: "connected",
-              createdAt: ra.createdAt || ra.created_at || new Date().toISOString(),
-            };
-          });
-
-          // Update connectedAccounts
-          connectedAccounts = mappedAccounts;
-
-          // Also persist / upsert to database table social_accounts so it stays saved
-          if (workspace.id && supabase) {
-            for (const acc of mappedAccounts) {
-              try {
-                await supabase.from("social_accounts").upsert(
-                  {
-                    workspace_id: workspace.id,
-                    provider: acc.provider,
-                    provider_account_id: acc.providerAccountId,
-                    username: acc.username,
-                    display_name: acc.displayName,
-                    profile_picture_url: acc.profilePictureUrl || null,
-                    status: "connected",
-                    updated_at: new Date().toISOString(),
-                  },
-                  { onConflict: "workspace_id,provider,provider_account_id" }
-                );
-              } catch (upsertErr) {
-                console.warn("Notice: could not upsert to social_accounts table:", upsertErr);
-              }
-            }
-          }
-        }
-      } catch (syncErr) {
-        console.warn("Could not sync live Zernio accounts:", syncErr);
-      }
-    }
+    const totalCapacity = formattedKeys.reduce((sum, k) => sum + (k.maxAccounts || 2), 0);
+    const totalUsed = connectedAccounts.length;
 
     return {
       success: true,
@@ -200,160 +234,223 @@ export async function getSocialAccountsData(): Promise<{
         workspace: {
           id: workspace.id,
           name: workspace.name,
-          zernioApiKey: apiKey ? `${apiKey.slice(0, 7)}••••••••••••${apiKey.slice(-4)}` : "",
-          isApiKeyConfigured: Boolean(apiKey && apiKey.length > 8),
-          zernioProfileId: workspace.zernio_profile_id || undefined,
+          zernioApiKey: primaryKey ? `${primaryKey.slice(0, 7)}••••••••••••${primaryKey.slice(-4)}` : "",
+          isApiKeyConfigured: isPrimaryConfigured,
+          zernioProfileId: rawKeys[0]?.profile_id || workspace.zernio_profile_id || undefined,
         },
         connectedAccounts,
+        apiKeys: formattedKeys,
+        totalCapacity,
+        totalUsed,
       },
     };
   } catch (err: any) {
     console.error("Error in getSocialAccountsData:", err);
-    return { success: false, error: "Gagal memuat data akun media sosial." };
+    return { success: false, error: err.message || "Gagal memuat data akun media sosial." };
   }
 }
 
 /**
- * 2. Save Zernio API Key & Verify with Zernio
+ * 2a. Add a new Zernio API Key to the Workspace pool
  */
-export async function saveZernioApiKey(apiKey: string): Promise<{
+export async function addZernioApiKeyAction(
+  apiKeyInput: string,
+  labelInput?: string
+): Promise<{
   success: boolean;
   message?: string;
   error?: string;
 }> {
-  const trimmedKey = apiKey?.trim();
-  if (!trimmedKey) {
-    return { success: false, error: "API Key Zernio tidak boleh kosong." };
-  }
-
   try {
     const { user, workspace, supabase } = await getActiveWorkspaceInfo();
-    if (!user) {
-      return { success: false, error: "Sesi telah berakhir. Silakan login kembali." };
+    if (!user || !workspace?.id) {
+      return { success: false, error: "Sesi tidak ditemukan atau workspace tidak valid." };
     }
 
-    // 1. Verify with Zernio API
-    const zernio = new ZernioClient(trimmedKey);
-    const validation = await zernio.validateApiKey();
+    const trimmedKey = apiKeyInput.trim();
+    if (!trimmedKey || trimmedKey.length < 10) {
+      return { success: false, error: "API Key Zernio tidak valid (terlalu pendek)." };
+    }
 
-    if (!validation.valid) {
+    // 1. Validate key by pinging Zernio API
+    const testClient = new ZernioClient(trimmedKey);
+    const checkRes = await testClient.getAccounts();
+    if (!checkRes.success && !(checkRes as any).mock) {
       return {
         success: false,
-        error: `Gagal memvalidasi API Key ke Zernio: ${validation.error || "Key tidak valid"}. Pastikan API Key benar dan aktif di dashboard Zernio.`,
+        error: `Gagal memvalidasi API Key ke Zernio: ${checkRes.error || "API Key tidak valid atau telah kedaluwarsa."}`,
       };
     }
 
-    // 2. Ensure profile exists in Zernio for this workspace
-    let zernioProfileId = workspace.zernio_profile_id;
+    // 2. Get or create a Profile ID for this key
+    const baseName = workspace.name || user.user_metadata?.business_name || "Workspace";
+    const uniqueSuffix = Math.random().toString(36).slice(2, 6);
+    const profileRes = await testClient.getOrCreateProfile(`${baseName} (${uniqueSuffix})`);
+    const profileId = profileRes.profileId || null;
+
+    // Count existing keys to formulate auto-label
+    const { count: existingCount } = await supabase
+      .from("zernio_api_keys")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace.id);
+
+    const nextIndex = (existingCount || 0) + 1;
+    const finalLabel = labelInput?.trim() || `API Key #${nextIndex}`;
+
+    // 3. Insert into zernio_api_keys table
     try {
-      const baseName = workspace.name || user.user_metadata?.business_name || "Workspace";
-      const uniqueSuffix = workspace.id ? workspace.id.slice(0, 6) : Math.random().toString(36).slice(2, 6);
-      const profileName = `${baseName} (${uniqueSuffix})`;
-      const profileRes = await zernio.getOrCreateProfile(profileName);
-      if (profileRes.profileId) {
-        zernioProfileId = profileRes.profileId;
-      }
-    } catch (profErr) {
-      console.warn("Profile creation notice on Zernio:", profErr);
+      const { error: insErr } = await supabase.from("zernio_api_keys").insert({
+        workspace_id: workspace.id,
+        label: finalLabel,
+        api_key: trimmedKey,
+        profile_id: profileId,
+        max_accounts: 2,
+        is_active: true,
+      });
+
+      if (insErr) throw insErr;
+    } catch (tableErr: any) {
+      console.warn("Could not insert into zernio_api_keys, falling back to workspace update:", tableErr);
+      // Fallback: save to workspace column
+      await supabase
+        .from("workspaces")
+        .update({ zernio_api_key: trimmedKey, zernio_profile_id: profileId })
+        .eq("id", workspace.id);
     }
 
-    // 3. Save to database workspaces table
-    if (workspace.id) {
-      try {
-        await supabase!
-          .from("workspaces")
-          .update({
-            zernio_api_key: trimmedKey,
-            zernio_profile_id: zernioProfileId || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", workspace.id);
-      } catch (dbErr) {
-        console.warn("Notice: could not update zernio_api_key column in workspaces:", dbErr);
-      }
+    // Also update workspace zernio_api_key if currently empty
+    if (!workspace.zernio_api_key) {
+      await supabase
+        .from("workspaces")
+        .update({ zernio_api_key: trimmedKey, zernio_profile_id: profileId })
+        .eq("id", workspace.id);
     }
-
-    // 4. Also store in Supabase Auth user metadata as high-reliability fallback
-    await supabase!.auth.updateUser({
-      data: {
-        zernio_api_key: trimmedKey,
-        zernio_profile_id: zernioProfileId || null,
-      },
-    });
 
     revalidatePath("/social-accounts");
     return {
       success: true,
-      message: "API Key Zernio berhasil diverifikasi dan disimpan! Silakan hubungkan akun media sosial Anda.",
+      message: `Berhasil menambahkan ${finalLabel}! Kapasitas bertambah 2 akun media sosial.`,
     };
   } catch (err: any) {
-    console.error("Error in saveZernioApiKey:", err);
-    return {
-      success: false,
-      error: err.message || "Terjadi kesalahan saat menyimpan API Key Zernio.",
-    };
+    console.error("Error adding Zernio API Key:", err);
+    return { success: false, error: err.message || "Gagal menambahkan API Key Zernio." };
   }
 }
 
 /**
- * 3. Generate Instagram Connect URL (Zernio OAuth Flow)
+ * 2b. Delete a Zernio API Key from the Workspace pool
+ */
+export async function deleteZernioApiKeyAction(keyId: string): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const { user, workspace, supabase } = await getActiveWorkspaceInfo();
+    if (!user || !workspace?.id) {
+      return { success: false, error: "Sesi tidak ditemukan." };
+    }
+
+    // Check if any connected accounts are using this key
+    const { data: linkedAccs } = await supabase
+      .from("social_accounts")
+      .select("id, username, provider")
+      .eq("workspace_id", workspace.id)
+      .eq("zernio_key_id", keyId)
+      .neq("status", "disconnected");
+
+    if (linkedAccs && linkedAccs.length > 0) {
+      const names = linkedAccs.map((a) => `${a.provider} (@${a.username})`).join(", ");
+      return {
+        success: false,
+        error: `Tidak dapat menghapus API Key ini karena masih terhubung dengan ${linkedAccs.length} akun media sosial aktif: ${names}. Harap putuskan (disconnect) akun-akun tersebut terlebih dahulu.`,
+      };
+    }
+
+    // Delete from zernio_api_keys
+    try {
+      await supabase
+        .from("zernio_api_keys")
+        .delete()
+        .eq("id", keyId)
+        .eq("workspace_id", workspace.id);
+    } catch (delErr: any) {
+      console.warn("Delete zernio_api_keys error:", delErr);
+    }
+
+    revalidatePath("/social-accounts");
+    return {
+      success: true,
+      message: "API Key Zernio berhasil dihapus.",
+    };
+  } catch (err: any) {
+    console.error("Error deleting Zernio API Key:", err);
+    return { success: false, error: err.message || "Gagal menghapus API Key Zernio." };
+  }
+}
+
+/**
+ * 2c. Save/Update Primary Zernio API Key (Legacy & Initial Setup)
+ */
+export async function saveZernioApiKey(apiKeyInput: string): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> {
+  return addZernioApiKeyAction(apiKeyInput, "API Key Utama #1");
+}
+
+/**
+ * 3a. Generate Instagram Connect URL (Auto-allocating to available Zernio API Key)
  */
 export async function getInstagramConnectUrlAction(originUrl?: string): Promise<{
   success: boolean;
   authUrl?: string;
   error?: string;
+  keyId?: string;
 }> {
   try {
-    const { user, workspace } = await getActiveWorkspaceInfo();
-    if (!user) {
+    const { user, workspace, supabase } = await getActiveWorkspaceInfo();
+    if (!user || !workspace?.id) {
       return { success: false, error: "Sesi tidak ditemukan." };
     }
 
-    let apiKey = workspace.zernio_api_key;
-    if (!apiKey) {
-      apiKey = user.user_metadata?.zernio_api_key;
-    }
-
-    if (!apiKey) {
+    // Auto-allocate: Find an API key that has < 2 connected accounts
+    const allocation = await getAvailableZernioKey(supabase, workspace.id);
+    if (!allocation.key) {
       return {
         success: false,
-        error: "API Key Zernio belum tersimpan. Harap simpan API Key Zernio terlebih dahulu.",
+        error: allocation.error || "Semua API Key Zernio Anda sudah terisi penuh (maksimal 2 akun per key). Harap tambahkan API Key Zernio baru di menu Pengaturan API Key.",
       };
     }
 
-    const zernio = new ZernioClient(apiKey);
+    const targetKey = allocation.key;
+    const zernio = new ZernioClient(targetKey.api_key);
 
-    // Profile ID is required by Zernio GET /v1/connect/instagram
-    let profileId = workspace.zernio_profile_id || user.user_metadata?.zernio_profile_id;
+    let profileId = targetKey.profile_id;
     if (!profileId) {
       const baseName = workspace.name || user.user_metadata?.business_name || "Workspace";
-      const uniqueSuffix = workspace.id ? workspace.id.slice(0, 6) : Math.random().toString(36).slice(2, 6);
-      const profileName = `${baseName} (${uniqueSuffix})`;
-      const profileRes = await zernio.getOrCreateProfile(profileName);
+      const uniqueSuffix = Math.random().toString(36).slice(2, 6);
+      const profileRes = await zernio.getOrCreateProfile(`${baseName} (${uniqueSuffix})`);
       if (!profileRes.profileId) {
         return {
           success: false,
-          error: profileRes.error || "Gagal membuat atau mengambil Profile ID Zernio untuk workspace ini.",
+          error: profileRes.error || "Gagal membuat Profile ID Zernio untuk API Key ini.",
         };
       }
       profileId = profileRes.profileId;
 
-      // Persist profileId
-      const { supabase } = await getActiveWorkspaceInfo();
-      if (supabase && workspace.id) {
-        try {
-          await supabase
-            .from("workspaces")
-            .update({ zernio_profile_id: profileId })
-            .eq("id", workspace.id);
-        } catch {
-          // ignore error if column does not exist
-        }
+      // Persist profileId back to target key
+      if (targetKey.id && targetKey.id !== "legacy_default") {
+        await supabase
+          .from("zernio_api_keys")
+          .update({ profile_id: profileId })
+          .eq("id", targetKey.id);
       }
     }
 
     const callbackRedirectUrl = originUrl
-      ? `${originUrl}/social-accounts?connected=instagram`
+      ? `${originUrl}/social-accounts?connected=instagram&keyId=${targetKey.id}`
       : undefined;
 
     const connectRes = await zernio.getInstagramConnectUrl({
@@ -372,6 +469,7 @@ export async function getInstagramConnectUrlAction(originUrl?: string): Promise<
     return {
       success: true,
       authUrl: connectRes.authUrl,
+      keyId: targetKey.id,
     };
   } catch (err: any) {
     console.error("Error generating Instagram connect URL:", err);
@@ -383,62 +481,55 @@ export async function getInstagramConnectUrlAction(originUrl?: string): Promise<
 }
 
 /**
- * 3b. Generate Threads Connect URL (Zernio OAuth Flow)
+ * 3b. Generate Threads Connect URL (Auto-allocating to available Zernio API Key)
  */
 export async function getThreadsConnectUrlAction(originUrl?: string): Promise<{
   success: boolean;
   authUrl?: string;
   error?: string;
+  keyId?: string;
 }> {
   try {
-    const { user, workspace } = await getActiveWorkspaceInfo();
-    if (!user) {
+    const { user, workspace, supabase } = await getActiveWorkspaceInfo();
+    if (!user || !workspace?.id) {
       return { success: false, error: "Sesi tidak ditemukan." };
     }
 
-    let apiKey = workspace.zernio_api_key;
-    if (!apiKey) {
-      apiKey = user.user_metadata?.zernio_api_key;
-    }
-
-    if (!apiKey) {
+    // Auto-allocate: Find an API key that has < 2 connected accounts
+    const allocation = await getAvailableZernioKey(supabase, workspace.id);
+    if (!allocation.key) {
       return {
         success: false,
-        error: "API Key Zernio belum tersimpan. Harap simpan API Key Zernio terlebih dahulu.",
+        error: allocation.error || "Semua API Key Zernio Anda sudah terisi penuh (maksimal 2 akun per key). Harap tambahkan API Key Zernio baru di menu Pengaturan API Key.",
       };
     }
 
-    const zernio = new ZernioClient(apiKey);
+    const targetKey = allocation.key;
+    const zernio = new ZernioClient(targetKey.api_key);
 
-    let profileId = workspace.zernio_profile_id || user.user_metadata?.zernio_profile_id;
+    let profileId = targetKey.profile_id;
     if (!profileId) {
       const baseName = workspace.name || user.user_metadata?.business_name || "Workspace";
-      const uniqueSuffix = workspace.id ? workspace.id.slice(0, 6) : Math.random().toString(36).slice(2, 6);
-      const profileName = `${baseName} (${uniqueSuffix})`;
-      const profileRes = await zernio.getOrCreateProfile(profileName);
+      const uniqueSuffix = Math.random().toString(36).slice(2, 6);
+      const profileRes = await zernio.getOrCreateProfile(`${baseName} (${uniqueSuffix})`);
       if (!profileRes.profileId) {
         return {
           success: false,
-          error: profileRes.error || "Gagal membuat atau mengambil Profile ID Zernio untuk workspace ini.",
+          error: profileRes.error || "Gagal membuat Profile ID Zernio untuk API Key ini.",
         };
       }
       profileId = profileRes.profileId;
 
-      const { supabase } = await getActiveWorkspaceInfo();
-      if (supabase && workspace.id) {
-        try {
-          await supabase
-            .from("workspaces")
-            .update({ zernio_profile_id: profileId })
-            .eq("id", workspace.id);
-        } catch {
-          // ignore
-        }
+      if (targetKey.id && targetKey.id !== "legacy_default") {
+        await supabase
+          .from("zernio_api_keys")
+          .update({ profile_id: profileId })
+          .eq("id", targetKey.id);
       }
     }
 
     const callbackRedirectUrl = originUrl
-      ? `${originUrl}/social-accounts?connected=threads`
+      ? `${originUrl}/social-accounts?connected=threads&keyId=${targetKey.id}`
       : undefined;
 
     const connectRes = await zernio.getThreadsConnectUrl({
@@ -456,6 +547,7 @@ export async function getThreadsConnectUrlAction(originUrl?: string): Promise<{
     return {
       success: true,
       authUrl: connectRes.authUrl,
+      keyId: targetKey.id,
     };
   } catch (err: any) {
     console.error("Error generating Threads connect URL:", err);
@@ -466,6 +558,159 @@ export async function getThreadsConnectUrlAction(originUrl?: string): Promise<{
   }
 }
 
+/**
+ * 3c. Generate TikTok Connect URL (Auto-allocating to available Zernio API Key)
+ */
+export async function getTikTokConnectUrlAction(originUrl?: string): Promise<{
+  success: boolean;
+  authUrl?: string;
+  error?: string;
+  keyId?: string;
+}> {
+  try {
+    const { user, workspace, supabase } = await getActiveWorkspaceInfo();
+    if (!user || !workspace?.id) {
+      return { success: false, error: "Sesi tidak ditemukan." };
+    }
+
+    const allocation = await getAvailableZernioKey(supabase, workspace.id);
+    if (!allocation.key) {
+      return {
+        success: false,
+        error: allocation.error || "Semua API Key Zernio Anda sudah terisi penuh (maksimal 2 akun per key). Harap tambahkan API Key Zernio baru.",
+      };
+    }
+
+    const targetKey = allocation.key;
+    const zernio = new ZernioClient(targetKey.api_key);
+
+    let profileId = targetKey.profile_id;
+    if (!profileId) {
+      const baseName = workspace.name || user.user_metadata?.business_name || "Workspace";
+      const uniqueSuffix = Math.random().toString(36).slice(2, 6);
+      const profileRes = await zernio.getOrCreateProfile(`${baseName} (${uniqueSuffix})`);
+      if (!profileRes.profileId) {
+        return {
+          success: false,
+          error: profileRes.error || "Gagal membuat Profile ID Zernio untuk API Key ini.",
+        };
+      }
+      profileId = profileRes.profileId;
+
+      if (targetKey.id && targetKey.id !== "legacy_default") {
+        await supabase
+          .from("zernio_api_keys")
+          .update({ profile_id: profileId })
+          .eq("id", targetKey.id);
+      }
+    }
+
+    const callbackRedirectUrl = originUrl
+      ? `${originUrl}/social-accounts?connected=tiktok&keyId=${targetKey.id}`
+      : undefined;
+
+    const connectRes = await zernio.getTikTokConnectUrl({
+      profileId,
+      redirectUrl: callbackRedirectUrl,
+    });
+
+    if (!connectRes.success || !connectRes.authUrl) {
+      return {
+        success: false,
+        error: connectRes.error || "Gagal mendapatkan URL otentikasi TikTok dari Zernio.",
+      };
+    }
+
+    return {
+      success: true,
+      authUrl: connectRes.authUrl,
+      keyId: targetKey.id,
+    };
+  } catch (err: any) {
+    console.error("Error generating TikTok connect URL:", err);
+    return {
+      success: false,
+      error: err.message || "Gagal menginisialisasi koneksi TikTok.",
+    };
+  }
+}
+
+/**
+ * 3d. Generate LinkedIn Connect URL (Auto-allocating to available Zernio API Key)
+ */
+export async function getLinkedInConnectUrlAction(originUrl?: string): Promise<{
+  success: boolean;
+  authUrl?: string;
+  error?: string;
+  keyId?: string;
+}> {
+  try {
+    const { user, workspace, supabase } = await getActiveWorkspaceInfo();
+    if (!user || !workspace?.id) {
+      return { success: false, error: "Sesi tidak ditemukan." };
+    }
+
+    const allocation = await getAvailableZernioKey(supabase, workspace.id);
+    if (!allocation.key) {
+      return {
+        success: false,
+        error: allocation.error || "Semua API Key Zernio Anda sudah terisi penuh (maksimal 2 akun per key). Harap tambahkan API Key Zernio baru.",
+      };
+    }
+
+    const targetKey = allocation.key;
+    const zernio = new ZernioClient(targetKey.api_key);
+
+    let profileId = targetKey.profile_id;
+    if (!profileId) {
+      const baseName = workspace.name || user.user_metadata?.business_name || "Workspace";
+      const uniqueSuffix = Math.random().toString(36).slice(2, 6);
+      const profileRes = await zernio.getOrCreateProfile(`${baseName} (${uniqueSuffix})`);
+      if (!profileRes.profileId) {
+        return {
+          success: false,
+          error: profileRes.error || "Gagal membuat Profile ID Zernio untuk API Key ini.",
+        };
+      }
+      profileId = profileRes.profileId;
+
+      if (targetKey.id && targetKey.id !== "legacy_default") {
+        await supabase
+          .from("zernio_api_keys")
+          .update({ profile_id: profileId })
+          .eq("id", targetKey.id);
+      }
+    }
+
+    const callbackRedirectUrl = originUrl
+      ? `${originUrl}/social-accounts?connected=linkedin&keyId=${targetKey.id}`
+      : undefined;
+
+    const connectRes = await zernio.getLinkedInConnectUrl({
+      profileId,
+      redirectUrl: callbackRedirectUrl,
+    });
+
+    if (!connectRes.success || !connectRes.authUrl) {
+      return {
+        success: false,
+        error: connectRes.error || "Gagal mendapatkan URL otentikasi LinkedIn dari Zernio.",
+      };
+    }
+
+    return {
+      success: true,
+      authUrl: connectRes.authUrl,
+      keyId: targetKey.id,
+    };
+  } catch (err: any) {
+    console.error("Error generating LinkedIn connect URL:", err);
+    return {
+      success: false,
+      error: err.message || "Gagal menginisialisasi koneksi LinkedIn.",
+    };
+  }
+}
 
 /**
  * 4. Disconnect Social Account
@@ -477,11 +722,27 @@ export async function disconnectSocialAccount(accountId: string): Promise<{
 }> {
   try {
     const { user, workspace, supabase } = await getActiveWorkspaceInfo();
-    if (!user) {
+    if (!user || !workspace?.id) {
       return { success: false, error: "Sesi telah berakhir." };
     }
 
-    const apiKey = workspace.zernio_api_key || user.user_metadata?.zernio_api_key;
+    // Find account to know its zernio_key_id
+    const { data: acc } = await supabase
+      .from("social_accounts")
+      .select("id, zernio_key_id, provider_account_id")
+      .eq("workspace_id", workspace.id)
+      .eq("provider_account_id", accountId)
+      .maybeSingle();
+
+    let apiKey = workspace.zernio_api_key;
+    if (acc?.zernio_key_id) {
+      const { data: keyRecord } = await supabase
+        .from("zernio_api_keys")
+        .select("api_key")
+        .eq("id", acc.zernio_key_id)
+        .maybeSingle();
+      if (keyRecord?.api_key) apiKey = keyRecord.api_key;
+    }
 
     // Disconnect on Zernio if API key exists
     if (apiKey) {
@@ -494,16 +755,10 @@ export async function disconnectSocialAccount(accountId: string): Promise<{
     }
 
     // Delete or update from local DB
-    if (workspace.id) {
-      try {
-        await supabase!
-          .from("social_accounts")
-          .delete()
-          .match({ workspace_id: workspace.id, provider_account_id: accountId });
-      } catch (delErr) {
-        console.warn("Database delete social account notice:", delErr);
-      }
-    }
+    await supabase
+      .from("social_accounts")
+      .delete()
+      .match({ workspace_id: workspace.id, provider_account_id: accountId });
 
     revalidatePath("/social-accounts");
     return {
@@ -517,7 +772,7 @@ export async function disconnectSocialAccount(accountId: string): Promise<{
 }
 
 /**
- * 5. Remove/Reset Zernio API Key
+ * 5. Remove/Reset Zernio API Key (Clear all keys for workspace)
  */
 export async function removeZernioApiKey(): Promise<{
   success: boolean;
@@ -526,20 +781,23 @@ export async function removeZernioApiKey(): Promise<{
 }> {
   try {
     const { user, workspace, supabase } = await getActiveWorkspaceInfo();
-    if (!user) return { success: false, error: "Sesi tidak ditemukan." };
+    if (!user || !workspace?.id) return { success: false, error: "Sesi tidak ditemukan." };
 
-    if (workspace.id) {
-      try {
-        await supabase!
-          .from("workspaces")
-          .update({ zernio_api_key: null, zernio_profile_id: null })
-          .eq("id", workspace.id);
-      } catch (err) {
-        console.warn("Reset zernio_api_key notice:", err);
-      }
+    try {
+      await supabase
+        .from("zernio_api_keys")
+        .delete()
+        .eq("workspace_id", workspace.id);
+    } catch (err) {
+      console.warn("Delete all zernio_api_keys notice:", err);
     }
 
-    await supabase!.auth.updateUser({
+    await supabase
+      .from("workspaces")
+      .update({ zernio_api_key: null, zernio_profile_id: null })
+      .eq("id", workspace.id);
+
+    await supabase.auth.updateUser({
       data: {
         zernio_api_key: null,
         zernio_profile_id: null,
@@ -547,7 +805,7 @@ export async function removeZernioApiKey(): Promise<{
     });
 
     revalidatePath("/social-accounts");
-    return { success: true, message: "API Key Zernio berhasil dihapus." };
+    return { success: true, message: "Semua API Key Zernio berhasil dihapus." };
   } catch (err: any) {
     return { success: false, error: err.message || "Gagal menghapus API Key." };
   }
