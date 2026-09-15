@@ -27,6 +27,7 @@ export interface AIReviewResult {
   checks: AIReviewCheck[];
   issues?: string[];
   suggestions?: string[];
+  threads_caption?: string;
 }
 
 export interface ContentPlanItem {
@@ -54,6 +55,7 @@ export interface ContentPlanItem {
   data_sources?: string[];
   // Lazy Generation & Reviewer fields
   caption?: string | null;
+  threads_caption?: string | null;
   hashtags?: string[] | null;
   media_url?: string | null;
   media_urls?: string[] | null;

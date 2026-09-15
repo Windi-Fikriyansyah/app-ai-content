@@ -28,6 +28,7 @@ export function createCaptionWorker() {
         const hasImage = Boolean(postData?.media_url || postData?.image_status === "COMPLETED");
         const updatePayload: any = {
           caption: result.caption,
+          threads_caption: result.threads_caption || null,
           hook: result.hook || brief.hook,
           cta: result.cta || brief.cta,
           hashtags: result.hashtags || [],
@@ -54,6 +55,7 @@ export function createCaptionWorker() {
                 dispatch_job_id: dispatchJob.jobId,
                 queued_at: new Date().toISOString(),
                 auto_approved: true,
+                threads_caption: result.threads_caption || (postData.ai_review as any)?.threads_caption || null,
               };
             }
           } catch (autoErr) {

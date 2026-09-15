@@ -23,6 +23,7 @@ export interface CaptionGenerationResult {
   success: boolean;
   hook?: string;
   caption?: string;
+  threads_caption?: string;
   cta?: string;
   hashtags?: string[];
   error?: string;
@@ -49,6 +50,7 @@ export interface LazyGenerationResult {
   postId: string;
   status: string;
   caption?: string;
+  threads_caption?: string;
   hook?: string;
   cta?: string;
   hashtags?: string[];
@@ -113,10 +115,18 @@ NON-NEGOTIABLE PRD RULES:
    - Call to Action (CTA): Ajakan bertindak yang jelas sesuai brief (komentar, simpan postingan, klik link bio, atau hubungi via WhatsApp).
    - Hashtags: 5-12 hashtags relevan, terarah (campuran hashtag industri, topik, dan lokal).
 
+8. CAPTION KHUSUS THREADS (WAJIB - ATURAN META):
+   - Buat juga "threads_caption" yang TERPISAH dari caption Instagram.
+   - threads_caption MUTLAK TIDAK BOLEH lebih dari 450 karakter (batas keras Meta Threads = 500 karakter, sisakan buffer).
+   - Gaya: kasual, singkat, to-the-point, memancing diskusi/opini, seperti ngobrol santai.
+   - Maksimal 1-2 hashtag saja. Tidak perlu CTA panjang.
+   - JANGAN copy-paste dari caption Instagram. Buat versi baru yang ringkas.
+
 OUTPUT FORMAT: Return VALID JSON ONLY:
 {
   "hook": "Kalimat pembuka yang memikat perhatian pembaca",
   "caption": "Teks caption lengkap dengan spasi paragraf rapi dan emoji proporsional",
+  "threads_caption": "Caption khusus Threads, singkat, kasual, memancing diskusi, MAKS 450 karakter",
   "cta": "Ajakan bertindak jelas",
   "hashtags": ["#hashtag1", "#hashtag2", "#hashtag3"]
 }`;
@@ -250,10 +260,23 @@ Tulis caption Instagram terbaik dan lengkap sesuai aturan di atas. Kembalikan JS
       ? parsed.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`))
       : [`#${context.businessName.toLowerCase().replace(/\s+/g, "")}`, `#${context.category.toLowerCase().replace(/\s+/g, "")}`];
 
+    // Build threads_caption with hard safety truncation
+    let threadsCap = parsed.threads_caption || "";
+    if (!threadsCap || threadsCap.length < 10) {
+      // Fallback: create a short version from the main caption
+      threadsCap = caption.length <= 450 ? caption : caption.slice(0, 440).trim() + "...";
+    }
+    if (threadsCap.length > 490) {
+      const sliced = threadsCap.slice(0, 470);
+      const lastSpace = sliced.lastIndexOf(" ");
+      threadsCap = (lastSpace > 300 ? sliced.slice(0, lastSpace) : sliced).trim() + "...";
+    }
+
     return {
       success: true,
       hook,
       caption,
+      threads_caption: threadsCap,
       cta,
       hashtags,
     };
@@ -324,11 +347,13 @@ REVISION REQUIREMENTS:
 2. BODY: Sajikan dengan readability tinggi, paragraf pendek (1-3 kalimat), gunakan bullet points jika ada tips/manfaat.
 3. CTA: Ajakan bertindak yang tegas, jelas, dan relevan dengan audiens.
 4. HASHTAGS: 5-10 hashtags relevan dan tertarget.
+5. THREADS_CAPTION: Buat juga caption khusus Threads, MAKS 450 karakter, kasual, singkat, memancing diskusi. JANGAN copy dari caption Instagram.
 
 OUTPUT FORMAT: Return VALID JSON ONLY:
 {
   "hook": "Kalimat hook baru yang jauh lebih kuat",
   "caption": "Teks caption lengkap yang sudah disempurnakan",
+  "threads_caption": "Caption khusus Threads, singkat, kasual, memancing diskusi, MAKS 450 karakter",
   "cta": "Ajakan bertindak yang jelas",
   "hashtags": ["#tag1", "#tag2", "#tag3"]
 }`;
@@ -433,6 +458,19 @@ Revisi draft di atas agar menyelesaikan semua poin masalah (issues) dan meraih s
       success: true,
       hook: parsed.hook || currentDraft.hook || brief.hook,
       caption: parsed.caption || currentDraft.caption,
+      threads_caption: (() => {
+        let tc = parsed.threads_caption || "";
+        if (!tc || tc.length < 10) {
+          const cap = parsed.caption || currentDraft.caption || "";
+          tc = cap.length <= 450 ? cap : cap.slice(0, 440).trim() + "...";
+        }
+        if (tc.length > 490) {
+          const sl = tc.slice(0, 470);
+          const ls = sl.lastIndexOf(" ");
+          tc = (ls > 300 ? sl.slice(0, ls) : sl).trim() + "...";
+        }
+        return tc;
+      })(),
       cta: parsed.cta || currentDraft.cta || brief.cta,
       hashtags: Array.isArray(parsed.hashtags)
         ? parsed.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`))
@@ -951,6 +989,7 @@ export async function runLazyGenerationForPost(
     postId: post.id,
     status,
     caption: captionRes.caption,
+    threads_caption: captionRes.threads_caption,
     hook: captionRes.hook || post.hook,
     cta: captionRes.cta || post.cta,
     hashtags: captionRes.hashtags,
@@ -958,7 +997,10 @@ export async function runLazyGenerationForPost(
     mediaUrls: imageRes.mediaUrls || (imageRes.mediaUrl ? [imageRes.mediaUrl] : []),
     carouselSlides: imageRes.carouselSlides || undefined,
     aiScore: reviewResult.score,
-    aiReview: reviewResult,
+    aiReview: {
+      ...reviewResult,
+      threads_caption: captionRes.threads_caption,
+    },
     captionStatus,
     imageStatus,
     error: errorMessage || undefined,

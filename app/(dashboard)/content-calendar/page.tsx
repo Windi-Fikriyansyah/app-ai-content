@@ -1751,6 +1751,32 @@ export default function ContentCalendarPage() {
                 </div>
               )}
 
+              {/* Dedicated Threads Caption (<500 characters Meta rule) */}
+              {activePost.caption && (() => {
+                const cap = activePost.caption || "";
+                const rawThreads =
+                  activePost.threads_caption ||
+                  activePost.ai_review?.threads_caption ||
+                  (cap.length <= 480 ? cap : `${cap.slice(0, 470).trim()}...`);
+                const threadsText: string = String(rawThreads || "").trim();
+                return (
+                  <div className="space-y-1.5 pt-1">
+                    <label className="font-bold text-outline uppercase tracking-wider text-[10px] flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-on-surface">
+                        <span className="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100 inline-block"></span>
+                        <span>Caption Khusus Threads (Maks 500 Karakter)</span>
+                      </span>
+                      <span className={`font-mono text-[10px] font-bold ${threadsText.length <= 500 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                        {threadsText.length} / 500 karakter
+                      </span>
+                    </label>
+                    <div className="p-3.5 rounded-2xl bg-surface-container/40 border border-outline-variant/30 text-on-surface whitespace-pre-wrap leading-relaxed text-xs max-h-40 overflow-y-auto">
+                      {threadsText}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Hashtags Chips */}
               {activePost.hashtags && activePost.hashtags.length > 0 && (
                 <div className="space-y-1">

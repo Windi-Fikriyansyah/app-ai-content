@@ -280,6 +280,7 @@ export function createGenerationWorker() {
       const fullUpdatePayload: Record<string, any> = {
         status: finalStatus,
         caption: captionResult.caption || post.caption,
+        threads_caption: captionResult.threads_caption || null,
         hook: captionResult.hook || post.hook,
         cta: captionResult.cta || post.cta,
         hashtags: captionResult.hashtags || post.hashtags,
@@ -289,7 +290,10 @@ export function createGenerationWorker() {
         caption_status: captionResult.success ? "COMPLETED" : "FAILED",
         image_status: imageResult.success ? "COMPLETED" : "FAILED",
         ai_score: reviewResult.score,
-        ai_review: reviewResult,
+        ai_review: {
+          ...reviewResult,
+          threads_caption: captionResult.threads_caption || null,
+        },
         generation_error: errorMessage || null,
         generated_at: new Date().toISOString(),
       };

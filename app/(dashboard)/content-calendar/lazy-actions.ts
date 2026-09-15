@@ -352,10 +352,34 @@ export async function approvePostAction(postId: string): Promise<{
           if (!accountIds.includes(accId)) {
             accountIds.push(accId);
             const prov = (acc.provider || "instagram").toLowerCase();
-            platforms.push({
-              platform: prov === "x" ? "twitter" : prov,
-              accountId: accId,
-            });
+            const platformKey = prov === "x" ? "twitter" : prov;
+
+            // For Threads: inject dedicated short caption as customContent
+            if (platformKey === "threads") {
+              const rawThreads =
+                post.threads_caption ||
+                (post.ai_review as Record<string, any>)?.threads_caption ||
+                post.caption ||
+                post.title ||
+                "";
+              let threadsTxt = String(rawThreads).trim();
+              if (threadsTxt.length > 480) {
+                const sliced = threadsTxt.slice(0, 475);
+                const ls = sliced.lastIndexOf(" ");
+                threadsTxt = (ls > 300 ? sliced.slice(0, ls) : sliced).trim() + "...";
+              }
+              platforms.push({
+                platform: platformKey,
+                accountId: accId,
+                customContent: threadsTxt,
+                content: threadsTxt,
+              } as any);
+            } else {
+              platforms.push({
+                platform: platformKey,
+                accountId: accId,
+              });
+            }
           }
         }
       }
